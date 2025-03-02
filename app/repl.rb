@@ -1,1 +1,1 @@
-puts $game.probe.solar_system_id
+pretty_print $game.state

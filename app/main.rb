@@ -22,17 +22,23 @@ class Game
     player.dx                  ||= 0
     player.dy                  ||= 0
     player.on_ground           ||= false
+    player.facing_x            ||= 1
 
     player.max_speed           ||= 10
     player.jump_power          ||= 29
-    player.jumps_left           ||= 5
+    player.jumps_left          ||= 5
     player.collected_goals     ||= []
+    player.dashes_left         ||= 5
     state.preview ||= []
+    state.dash_spline            = [
+      [0, 0.66, 1.0, 1.0]
+    ]
 
     state.tile_size            ||= 64
     if !state.tiles
-      state.tiles = load_rects "data/temp-2.txt"
-      state.goals = load_rects "data/temp-2-goals.txt"
+      state.tiles =  load_rects "data/temp.txt"
+      state.goals =  load_rects "data/temp-goals.txt"
+      state.spikes = load_rects "data/temp-spikes.txt"
     end
 
     if !state.camera
@@ -48,7 +54,7 @@ class Game
   end
 
   def load_rects file_path
-    contents = GTK.read_file file_path
+    contents = GTK.read_file(file_path) || ""
     contents.each_line.map do |l|
       ordinal_x, ordinal_y = l.split(",").map(&:to_i)
       r = { ordinal_x: ordinal_x, ordinal_y: ordinal_y }
@@ -70,6 +76,7 @@ class Game
   def input
     input_jump
     input_move
+    input_dash
   end
 
   def input_jump
@@ -82,17 +89,31 @@ class Game
   def input_move
     if inputs.left
       player.dx -= player.max_speed
+      player.facing_x = -1
     elsif inputs.right
       player.dx += player.max_speed
+      player.facing_x =  1
     else
       player.dx = 0
     end
     player.dx = player.dx.clamp(-player.max_speed, player.max_speed)
   end
 
+  def input_dash
+    if inputs.controller_one.key_down.r1
+      player.is_dashing = true
+      player.dashing_at = Kernel.tick_count
+      player.start_dash_x = player.x
+      player.end_dash_x = player.x + state.tile_size * player.dashes_left * player.facing_x
+      player.dashes_left -= 1
+      player.dashes_left = player.dashes_left.clamp(0, 5)
+    end
+  end
+
   def calc
     calc_physics player
     calc_goals
+    calc_spikes
     calc_game_over
     calc_level_edit
     calc_camera
@@ -102,6 +123,13 @@ class Game
     goal = Geometry.find_intersect_rect player, state.goals
     if goal
       state.player.collected_goals << goal
+    end
+  end
+
+  def calc_spikes
+    spike = Geometry.find_intersect_rect player, state.spikes
+    if spike
+      state.player.is_dead = true
     end
   end
 
@@ -121,6 +149,9 @@ class Game
         state.level_editor_tile_type = :goal
         GTK.notify "Tile type set to :goal"
       when :goal
+        state.level_editor_tile_type = :spikes
+        GTK.notify "Tile type set to :spikes"
+      when :spikes
         state.level_editor_tile_type = :ground
         GTK.notify "Tile type set to :ground"
       end
@@ -140,6 +171,8 @@ class Game
                      state.tiles
                    when :goal
                      state.goals
+                   when :spikes
+                     state.spikes
                    end
 
     if inputs.mouse.click
@@ -151,11 +184,14 @@ class Game
         target_rects << { ordinal_x: rect.x.idiv(64), ordinal_y: rect.y.idiv(64) }
       end
 
-      save_rects "data/temp-2.txt", state.tiles
-      state.tiles = load_rects "data/temp-2.txt"
+      save_rects "data/temp.txt", state.tiles
+      state.tiles = load_rects "data/temp.txt"
 
-      save_rects "data/temp-2-goals.txt", state.goals
-      state.goals = load_rects "data/temp-2-goals.txt"
+      save_rects "data/temp-goals.txt", state.goals
+      state.goals = load_rects "data/temp-goals.txt"
+
+      save_rects "data/temp-spikes.txt", state.spikes
+      state.spikes = load_rects "data/temp-spikes.txt"
     end
 
     if inputs.controller_one.key_down.select || inputs.keyboard.key_down.u
@@ -194,57 +230,26 @@ class Game
   end
 
   def calc_preview
+    return
     if inputs.keyboard.key_held.nine
       GTK.slowmo! 30
     end
-    if Kernel.tick_count.zmod? 60
-      # entity = state.player.copy
-      # entity.dx = 0
-      # entity_jump entity
-      # state.preview << entity
 
+    if Kernel.tick_count.zmod? 60
       entity = state.player.copy
       entity.dx = 0
       entity_jump entity
       state.preview << entity
 
-      # entity = state.player.copy
-      # entity.dx = 0
-      # entity_jump entity
-      # entity.dy = 21
-      # state.preview << entity
+      entity = state.player.copy
+      entity.dx = state.player.max_speed
+      entity_jump entity
+      state.preview << entity
 
-      # entity = state.player.copy
-      # entity.dx = 0
-      # entity_jump entity
-      # entity.dy = 17
-      # state.preview << entity
-
-      # entity = state.player.copy
-      # entity.dx = 0
-      # entity_jump entity
-      # entity.dy = 13
-      # state.preview << entity
-
-      # entity = state.player.copy
-      # entity.dx = state.player.max_speed
-      # entity_jump entity
-      # state.preview << entity
-
-      # entity = state.player.copy
-      # entity.dx = -state.player.max_speed
-      # entity_jump entity
-      # state.preview << entity
-
-      # entity = state.player.copy
-      # entity.dx = state.player.max_speed
-      # entity.dy = 0
-      # state.preview << entity
-
-      # entity = state.player.copy
-      # entity.dx = -state.player.max_speed
-      # entity.dy = 0
-      # state.preview << entity
+      entity = state.player.copy
+      entity.dx = -state.player.max_speed
+      entity_jump entity
+      state.preview << entity
     end
 
     state.preview.each do |entity|
@@ -257,7 +262,23 @@ class Game
   end
 
   def calc_physics target
-    target.x  += target.dx
+    if target.is_dashing
+      current_progress = Easing.spline player.dashing_at,
+                                       Kernel.tick_count,
+                                       15,
+                                       state.dash_spline
+      puts current_progress if current_progress != 1.0
+      target.x = target.start_dash_x
+      diff = target.end_dash_x - target.x
+      target.x += diff * current_progress
+      # target.x + (target.end_dash_x - target.x) * current_progress
+      if target.x.round == target.end_dash_x.round
+        target.is_dashing = false
+      end
+    else
+      target.x  += target.dx
+    end
+
     collision = Geometry.find_intersect_rect target, state.tiles
     if collision
       if target.dx > 0
@@ -285,7 +306,11 @@ class Game
       target.on_ground_at = nil
       target.started_falling_at ||= Kernel.tick_count
     end
-    target.dy = target.dy + state.gravity
+    if target.is_dashing
+      target.dy = 0
+    else
+      target.dy = target.dy + state.gravity
+    end
     drop_fast = target.dy < 0
     if drop_fast
       target.dy = target.dy + state.gravity
@@ -295,14 +320,15 @@ class Game
   end
 
   def calc_game_over
-    if player.y < -2000 || inputs.controller_one.key_down.start
+    if player.y < -2000 || inputs.controller_one.key_down.start || player.is_dead
       player.x = 400
       player.y = 64
       player.dx = 0
       player.dy = 0
       player.jump_power = 29
-      player.jump_left = 5
+      player.jumps_left = 5
       player.collected_goals = []
+      player.is_dead = false
     end
   end
 
@@ -317,6 +343,8 @@ class Game
                                   state.level_editor_mouse_rect.merge(path: "sprites/square/white.png", a: 128)
                                 when :goal
                                   state.level_editor_mouse_rect.merge(path: "sprites/square/yellow.png", a: 128)
+                                when :spikes
+                                  state.level_editor_mouse_rect.merge(path: "sprites/square/red.png", a: 128)
                                 end
 
     outputs[:scene].primitives << Camera.to_screen_space(state.camera, level_editor_mouse_prefab)
@@ -325,7 +353,8 @@ class Game
   end
 
   def render_player
-    player_prefab = Camera.to_screen_space state.camera, (player.merge path: "sprites/square/red.png")
+    player_prefab = Camera.to_screen_space state.camera,
+                                           player.merge(path: "sprites/square/green.png", flip_horizontally: player.facing_x < 0)
 
     outputs[:scene].sprites << player_prefab
 
@@ -336,11 +365,7 @@ class Game
 
   def render_tiles
     outputs[:scene].sprites << state.tiles.map do |t|
-      Camera.to_screen_space state.camera, (t.merge path: 'sprites/square/white.png',
-                                                    x: t.ordinal_x * state.tile_size,
-                                                    y: t.ordinal_y * state.tile_size,
-                                                    w: state.tile_size,
-                                                    h: state.tile_size)
+      Camera.to_screen_space(state.camera, t.merge(path: 'sprites/square/white.png'))
     end
 
     remaining_goals = state.goals.reject do |g|
@@ -348,11 +373,11 @@ class Game
                       end
 
     outputs[:scene].sprites << remaining_goals.map do |t|
-      Camera.to_screen_space state.camera, (t.merge path: 'sprites/square/yellow.png',
-                                                    x: t.ordinal_x * state.tile_size,
-                                                    y: t.ordinal_y * state.tile_size,
-                                                    w: state.tile_size,
-                                                    h: state.tile_size)
+      Camera.to_screen_space(state.camera, t.merge(path: 'sprites/square/yellow.png'))
+    end
+
+    outputs[:scene].sprites << state.spikes.map do |t|
+      Camera.to_screen_space state.camera, t.merge(path: 'sprites/square/red.png')
     end
   end
 
