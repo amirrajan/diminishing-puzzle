@@ -1,0 +1,4 @@
+- Unzip DR and name it `diminshing-puzzle`.
+- Got into DR directory and delete the exsting `mygame` directory.
+- Within DR directory do `git clone GHURL mygame`
+- start DR with `./dragonruby`
