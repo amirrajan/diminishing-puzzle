@@ -25,16 +25,11 @@ class Game
 
     player.max_speed           ||= 10
     player.jump_power          ||= 28
-    player.jump_air_time       ||= 15
-    player.jump_increase_power ||= 1
     state.preview ||= []
 
     state.tile_size            ||= 64
     if !state.tiles
       state.tiles = load_level "data/level-1.txt"
-
-      # state.tiles = load_level "data/level-1.txt"
-      # puts state.tiles
     end
 
     if !state.camera
@@ -44,17 +39,9 @@ class Game
         target_x: 0,
         target_y: 0,
         target_scale: 0.75,
-        scale: 1
+        scale: 0.75
       }
     end
-
-    ease = 0.1
-    state.camera.scale += (state.camera.target_scale - state.camera.scale) * ease
-    state.camera.target_x = player.x
-    state.camera.target_y = player.y
-
-    state.camera.x += (state.camera.target_x - state.camera.x) * ease
-    state.camera.y += (state.camera.target_y - state.camera.y) * ease
   end
 
   def load_level file_path
@@ -83,7 +70,6 @@ class Game
   end
 
   def input_jump
-    outputs.watch "#{player.jump_air_time}"
     if inputs.keyboard.key_down.space || inputs.controller_one.key_down.a
       state.previous_player_state = player.merge({})
       entity_jump player
@@ -104,7 +90,6 @@ class Game
   def calc
     calc_physics player
     calc_game_over
-    calc_preview
     calc_level_edit
     calc_camera
   end
@@ -116,6 +101,8 @@ class Game
   end
 
   def calc_level_edit
+    calc_preview
+
     state.hovered_tile = { x_ordinal: inputs.mouse.x.idiv(64),
                            x: inputs.mouse.x.idiv(64) * 64,
                            y_ordinal: inputs.mouse.x.idiv(64),
@@ -149,19 +136,17 @@ class Game
       state.player = state.previous_player_state if state.previous_player_state
     end
 
-    if args.inputs.keyboard.key_down.equal_sign || args.inputs.keyboard.key_down.plus
+    if inputs.keyboard.key_down.equal_sign || inputs.keyboard.key_down.plus
       state.camera.target_scale += 0.25
-    elsif args.inputs.keyboard.key_down.minus
+    elsif inputs.keyboard.key_down.minus
       state.camera.target_scale -= 0.25
       state.camera.target_scale = 0.25 if state.camera.target_scale < 0.25
-    elsif args.inputs.keyboard.zero
+    elsif inputs.keyboard.zero
       state.camera.target_scale = 1
     end
   end
 
   def calc_camera
-    state.world_size ||= 1280
-
     if !state.camera
       state.camera = {
         x: 0,
@@ -261,7 +246,7 @@ class Game
 
   def calc_game_over
     if player.y < -64 || inputs.controller_one.key_down.start
-      player.x = 64
+      player.x = 400
       player.y = 64
       player.dx = 0
       player.dy = 0
@@ -272,17 +257,17 @@ class Game
   def render
     render_player
     render_tiles
-    rect = state.mouse_world_rect
+
     outputs[:scene].w = 1500
     outputs[:scene].h = 1500
-    outputs[:scene].primitives << Camera.to_screen_space(state.camera, rect.merge(path: "sprites/square/white.png",
-                                                                                  r: 255,
-                                                                                  g: 255,
-                                                                                  b: 255,
-                                                                                  a: 128))
+    outputs[:scene].primitives << Camera.to_screen_space(state.camera,
+                                                         state.mouse_world_rect.merge(path: "sprites/square/white.png",
+                                                                                      r: 255,
+                                                                                      g: 255,
+                                                                                      b: 255,
+                                                                                      a: 128))
 
     outputs.sprites << { **Camera.viewport, path: :scene }
-    # render_grid
   end
 
   def render_player
@@ -305,44 +290,6 @@ class Game
     end
   end
 
-  def render_grid
-    if Kernel.tick_count == 0
-      outputs[:grid].background_color = [0, 0, 0, 0]
-      outputs[:grid].borders << available_brick_locations
-      outputs[:grid].labels  << available_brick_locations.map do |b|
-        [
-          b.merge(text: "#{b.ordinal_x},#{b.ordinal_y}",
-                  x: b.x + 2,
-                  y: b.y + 2,
-                  size_enum: -3,
-                  vertical_alignment_enum: 0,
-                  blendmode_enum: 0),
-          b.merge(text: "#{b.x},#{b.y}",
-                  x: b.x + 2,
-                  y: b.y + 2 + 20,
-                  size_enum: -3,
-                  vertical_alignment_enum: 0,
-                  blendmode_enum: 0)
-        ]
-      end
-    end
-
-    outputs[:scene].sprites << { x: 0, y: 0, w: 1280, h: 720, path: :grid }
-  end
-
-  def available_brick_locations
-    (0..19).to_a
-      .product(0..11)
-      .map do |(ordinal_x, ordinal_y)|
-      { ordinal_x: ordinal_x,
-        ordinal_y: ordinal_y,
-        x: ordinal_x * state.tile_size,
-        y: ordinal_y * state.tile_size,
-        w: state.tile_size,
-        h: state.tile_size }
-    end
-  end
-
   def player
     state.player ||= {}
   end
@@ -354,12 +301,6 @@ class Game
     target.dy = target.jump_power
     target.jump_at = Kernel.tick_count
   end
-
-  def player_jump_increase_air_time
-    return if !player.jump_at
-    return if player.jump_at.elapsed_time >= player.jump_air_time
-    player.dy += player.jump_increase_power
-  end
 end
 
 def boot args
@@ -370,6 +311,10 @@ def tick args
   $game ||= Game.new
   $game.args = args
   $game.tick
+end
+
+def reset args
+  $game = nil
 end
 
 # GTK.reset_and_replay "replay.txt", speed: 3

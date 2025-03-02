@@ -12,6 +12,6 @@ log.filter_subsystems=HTTPServer,HTTP
 # game and wire it up to $gtk.request_quit
 # renderer.borderless=true
 
-webserver.enabled=true
-webserver.port=9001
-webserver.remote_clients=true
+# webserver.enabled=true
+# webserver.port=9001
+# webserver.remote_clients=true
