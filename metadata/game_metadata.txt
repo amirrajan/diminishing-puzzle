@@ -1,0 +1,6 @@
+devid=todo
+devtitle=Todo
+gameid=todo
+gametitle=TODO
+version=1.0
+icon=metadata/icon.png
