@@ -25,11 +25,13 @@ class Game
 
     player.max_speed           ||= 10
     player.jump_power          ||= 28
+    player.collected_goals     ||= []
     state.preview ||= []
 
     state.tile_size            ||= 64
     if !state.tiles
-      state.tiles = load_level "data/level-1.txt"
+      state.tiles = load_rects "data/level-1.txt"
+      state.goals = load_rects "data/level-1-goals.txt"
     end
 
     if !state.camera
@@ -44,7 +46,7 @@ class Game
     end
   end
 
-  def load_level file_path
+  def load_rects file_path
     contents = GTK.read_file file_path
     contents.each_line.map do |l|
       ordinal_x, ordinal_y = l.split(",").map(&:to_i)
@@ -57,8 +59,8 @@ class Game
     end
   end
 
-  def save_level file_path
-    contents = state.tiles.map do |t|
+  def save_rects file_path, rects
+    contents = rects.map do |t|
       "#{t[:ordinal_x]},#{t[:ordinal_y]}"
     end.join("\n")
     GTK.write_file file_path, contents
@@ -89,9 +91,17 @@ class Game
 
   def calc
     calc_physics player
+    calc_goals
     calc_game_over
     calc_level_edit
     calc_camera
+  end
+
+  def calc_goals
+    goal = Geometry.find_intersect_rect player, state.goals
+    if goal
+      state.player.collected_goals << goal
+    end
   end
 
   def mouse_tile_rect
@@ -103,26 +113,48 @@ class Game
   def calc_level_edit
     calc_preview
 
+    state.level_editor_tile_type ||= :ground
+    if inputs.keyboard.key_down.tab
+      case state.level_editor_tile_type
+      when :ground
+        state.level_editor_tile_type = :goal
+        GTK.notify "Tile type set to :goal"
+      when :goal
+        state.level_editor_tile_type = :ground
+        GTK.notify "Tile type set to :ground"
+      end
+    end
 
     world_mouse = Camera.to_world_space state.camera, inputs.mouse
     ifloor_x = world_mouse.x.ifloor(64)
     ifloor_y = world_mouse.y.ifloor(64)
 
-    state.mouse_world_rect =  { x: ifloor_x,
-                                y: ifloor_y,
-                                w: 64,
-                                h: 64 }
+    state.level_editor_mouse_rect =  { x: ifloor_x,
+                                       y: ifloor_y,
+                                       w: 64,
+                                       h: 64 }
+
+    target_rects = case state.level_editor_tile_type
+                   when :ground
+                     state.tiles
+                   when :goal
+                     state.goals
+                   end
 
     if inputs.mouse.click
-      rect = state.mouse_world_rect
-      collision = Geometry.find_intersect_rect rect, state.tiles
+      rect = state.level_editor_mouse_rect
+      collision = Geometry.find_intersect_rect rect, target_rects
       if collision
-        state.tiles.delete collision
+        target_rects.delete collision
       else
-        state.tiles << { ordinal_x: rect.x.idiv(64), ordinal_y: rect.y.idiv(64) }
+        target_rects << { ordinal_x: rect.x.idiv(64), ordinal_y: rect.y.idiv(64) }
       end
-      save_level "data/temp-1.txt"
-      state.tiles = load_level "data/temp-1.txt"
+
+      save_rects "data/temp-1.txt", state.tiles
+      state.tiles = load_rects "data/temp-1.txt"
+
+      save_rects "data/temp-1-goals.txt", state.goals
+      state.goals = load_rects "data/temp-1-goals.txt"
     end
 
     if inputs.controller_one.key_down.select || inputs.keyboard.key_down.u
@@ -242,6 +274,7 @@ class Game
       player.dx = 0
       player.dy = 0
       player.jump_power = 28
+      player.collected_goals = []
     end
   end
 
@@ -251,12 +284,14 @@ class Game
 
     outputs[:scene].w = 1500
     outputs[:scene].h = 1500
-    outputs[:scene].primitives << Camera.to_screen_space(state.camera,
-                                                         state.mouse_world_rect.merge(path: "sprites/square/white.png",
-                                                                                      r: 255,
-                                                                                      g: 255,
-                                                                                      b: 255,
-                                                                                      a: 128))
+    level_editor_mouse_prefab = case state.level_editor_tile_type
+                                when :ground
+                                  state.level_editor_mouse_rect.merge(path: "sprites/square/white.png", a: 128)
+                                when :goal
+                                  state.level_editor_mouse_rect.merge(path: "sprites/square/yellow.png", a: 128)
+                                end
+
+    outputs[:scene].primitives << Camera.to_screen_space(state.camera, level_editor_mouse_prefab)
 
     outputs.sprites << { **Camera.viewport, path: :scene }
   end
@@ -274,6 +309,18 @@ class Game
   def render_tiles
     outputs[:scene].sprites << state.tiles.map do |t|
       Camera.to_screen_space state.camera, (t.merge path: 'sprites/square/white.png',
+                                                    x: t.ordinal_x * state.tile_size,
+                                                    y: t.ordinal_y * state.tile_size,
+                                                    w: state.tile_size,
+                                                    h: state.tile_size)
+    end
+
+    remaining_goals = state.goals.reject do |g|
+                       Geometry.find_intersect_rect g, state.player.collected_goals
+                      end
+
+    outputs[:scene].sprites << remaining_goals.map do |t|
+      Camera.to_screen_space state.camera, (t.merge path: 'sprites/square/yellow.png',
                                                     x: t.ordinal_x * state.tile_size,
                                                     y: t.ordinal_y * state.tile_size,
                                                     w: state.tile_size,
