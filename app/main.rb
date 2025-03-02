@@ -36,9 +36,9 @@ class Game
 
     state.tile_size            ||= 64
     if !state.tiles
-      state.tiles =  load_rects "data/temp.txt"
-      state.goals =  load_rects "data/temp-goals.txt"
-      state.spikes = load_rects "data/temp-spikes.txt"
+      state.tiles =  load_rects "data/level-3.txt"
+      state.goals =  load_rects "data/level-3-goals.txt"
+      state.spikes = load_rects "data/level-3-spikes.txt"
     end
 
     if !state.camera
@@ -230,7 +230,6 @@ class Game
   end
 
   def calc_preview
-    return
     if inputs.keyboard.key_held.nine
       GTK.slowmo! 30
     end
@@ -263,16 +262,14 @@ class Game
 
   def calc_physics target
     if target.is_dashing
-      current_progress = Easing.spline player.dashing_at,
+      current_progress = Easing.spline target.dashing_at,
                                        Kernel.tick_count,
                                        15,
                                        state.dash_spline
-      puts current_progress if current_progress != 1.0
       target.x = target.start_dash_x
       diff = target.end_dash_x - target.x
       target.x += diff * current_progress
-      # target.x + (target.end_dash_x - target.x) * current_progress
-      if target.x.round == target.end_dash_x.round
+      if target.dashing_at.elapsed_time >= 15
         target.is_dashing = false
       end
     else
@@ -281,6 +278,7 @@ class Game
 
     collision = Geometry.find_intersect_rect target, state.tiles
     if collision
+      target.is_dashing = false
       if target.dx > 0
         target.x = collision.rect.x - target.w
       elsif target.dx < 0
@@ -327,6 +325,8 @@ class Game
       player.dy = 0
       player.jump_power = 29
       player.jumps_left = 5
+      player.dashes_left = 5
+      player.is_dashing = false
       player.collected_goals = []
       player.is_dead = false
     end
