@@ -71,7 +71,7 @@ class Game
 
   def input_jump
     if inputs.keyboard.key_down.space || inputs.controller_one.key_down.a
-      state.previous_player_state = player.merge({})
+      state.previous_player_state = player.copy
       entity_jump player
     end
   end
@@ -103,13 +103,6 @@ class Game
   def calc_level_edit
     calc_preview
 
-    state.hovered_tile = { x_ordinal: inputs.mouse.x.idiv(64),
-                           x: inputs.mouse.x.idiv(64) * 64,
-                           y_ordinal: inputs.mouse.x.idiv(64),
-                           y: inputs.mouse.y.idiv(64) * 64,
-                           path: "sprites/square/white.png",
-                           w: 64,
-                           h: 64 }
 
     world_mouse = Camera.to_world_space state.camera, inputs.mouse
     ifloor_x = world_mouse.x.ifloor(64)
@@ -132,7 +125,7 @@ class Game
       state.tiles = load_level "data/temp-1.txt"
     end
 
-    if inputs.controller_one.key_down.select
+    if inputs.controller_one.key_down.select || inputs.keyboard.key_down.u
       state.player = state.previous_player_state if state.previous_player_state
     end
 
@@ -169,27 +162,27 @@ class Game
 
   def calc_preview
     if Kernel.tick_count.zmod? 60
-      entity = state.player.merge({})
+      entity = state.player.copy
       entity.dx = 0
       entity_jump entity
       state.preview << entity
 
-      entity = state.player.merge({})
+      entity = state.player.copy
       entity.dx = state.player.max_speed
       entity_jump entity
       state.preview << entity
 
-      entity = state.player.merge({})
+      entity = state.player.copy
       entity.dx = -state.player.max_speed
       entity_jump entity
       state.preview << entity
 
-      entity = state.player.merge({})
+      entity = state.player.copy
       entity.dx = state.player.max_speed
       entity.dy = 0
       state.preview << entity
 
-      entity = state.player.merge({})
+      entity = state.player.copy
       entity.dx = -state.player.max_speed
       entity.dy = 0
       state.preview << entity
@@ -214,8 +207,6 @@ class Game
         target.x = collision.rect.x + collision.rect.w
       end
     end
-
-    target.dy ||= 0
 
     target.y += target.dy
     collision = Geometry.find_intersect_rect target, state.tiles
@@ -245,7 +236,7 @@ class Game
   end
 
   def calc_game_over
-    if player.y < -64 || inputs.controller_one.key_down.start
+    if player.y < -2000 || inputs.controller_one.key_down.start
       player.x = 400
       player.y = 64
       player.dx = 0
