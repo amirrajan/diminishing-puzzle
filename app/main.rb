@@ -24,14 +24,15 @@ class Game
     player.on_ground           ||= false
 
     player.max_speed           ||= 10
-    player.jump_power          ||= 28
+    player.jump_power          ||= 29
+    player.jumps_left           ||= 5
     player.collected_goals     ||= []
     state.preview ||= []
 
     state.tile_size            ||= 64
     if !state.tiles
-      state.tiles = load_rects "data/level-1.txt"
-      state.goals = load_rects "data/level-1-goals.txt"
+      state.tiles = load_rects "data/temp-2.txt"
+      state.goals = load_rects "data/temp-2-goals.txt"
     end
 
     if !state.camera
@@ -150,11 +151,11 @@ class Game
         target_rects << { ordinal_x: rect.x.idiv(64), ordinal_y: rect.y.idiv(64) }
       end
 
-      save_rects "data/temp-1.txt", state.tiles
-      state.tiles = load_rects "data/temp-1.txt"
+      save_rects "data/temp-2.txt", state.tiles
+      state.tiles = load_rects "data/temp-2.txt"
 
-      save_rects "data/temp-1-goals.txt", state.goals
-      state.goals = load_rects "data/temp-1-goals.txt"
+      save_rects "data/temp-2-goals.txt", state.goals
+      state.goals = load_rects "data/temp-2-goals.txt"
     end
 
     if inputs.controller_one.key_down.select || inputs.keyboard.key_down.u
@@ -193,31 +194,57 @@ class Game
   end
 
   def calc_preview
+    if inputs.keyboard.key_held.nine
+      GTK.slowmo! 30
+    end
     if Kernel.tick_count.zmod? 60
+      # entity = state.player.copy
+      # entity.dx = 0
+      # entity_jump entity
+      # state.preview << entity
+
       entity = state.player.copy
       entity.dx = 0
       entity_jump entity
       state.preview << entity
 
-      entity = state.player.copy
-      entity.dx = state.player.max_speed
-      entity_jump entity
-      state.preview << entity
+      # entity = state.player.copy
+      # entity.dx = 0
+      # entity_jump entity
+      # entity.dy = 21
+      # state.preview << entity
 
-      entity = state.player.copy
-      entity.dx = -state.player.max_speed
-      entity_jump entity
-      state.preview << entity
+      # entity = state.player.copy
+      # entity.dx = 0
+      # entity_jump entity
+      # entity.dy = 17
+      # state.preview << entity
 
-      entity = state.player.copy
-      entity.dx = state.player.max_speed
-      entity.dy = 0
-      state.preview << entity
+      # entity = state.player.copy
+      # entity.dx = 0
+      # entity_jump entity
+      # entity.dy = 13
+      # state.preview << entity
 
-      entity = state.player.copy
-      entity.dx = -state.player.max_speed
-      entity.dy = 0
-      state.preview << entity
+      # entity = state.player.copy
+      # entity.dx = state.player.max_speed
+      # entity_jump entity
+      # state.preview << entity
+
+      # entity = state.player.copy
+      # entity.dx = -state.player.max_speed
+      # entity_jump entity
+      # state.preview << entity
+
+      # entity = state.player.copy
+      # entity.dx = state.player.max_speed
+      # entity.dy = 0
+      # state.preview << entity
+
+      # entity = state.player.copy
+      # entity.dx = -state.player.max_speed
+      # entity.dy = 0
+      # state.preview << entity
     end
 
     state.preview.each do |entity|
@@ -273,7 +300,8 @@ class Game
       player.y = 64
       player.dx = 0
       player.dy = 0
-      player.jump_power = 28
+      player.jump_power = 29
+      player.jump_left = 5
       player.collected_goals = []
     end
   end
@@ -335,7 +363,20 @@ class Game
   def entity_jump target
     can_jump = target.on_ground || (target.started_falling_at && target.started_falling_at.elapsed_time < 4)
     return if !can_jump
-    target.jump_power = (target.jump_power * 0.90).floor
+
+    jump_power_lookup = {
+      5 => 27,
+      4 => 24,
+      3 => 21,
+      2 => 17,
+      1 => 13,
+      0 => 0
+    }
+
+    target.jump_power = jump_power_lookup[target.jumps_left] || 0
+
+    target.jumps_left -= 1
+
     target.dy = target.jump_power
     target.jump_at = Kernel.tick_count
   end
