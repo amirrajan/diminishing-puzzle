@@ -4,3 +4,5 @@ gameid=todo
 gametitle=TODO
 version=1.0
 icon=metadata/icon.png
+hd=true
+highdpi=true
