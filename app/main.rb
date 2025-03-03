@@ -13,7 +13,7 @@ class Game
 
   def new_player
     {
-      x: 400,
+      x: 330,
       y: 64,
       w: 50,
       h: 50,
@@ -52,9 +52,10 @@ class Game
     state.tile_size            ||= 64
 
     if !state.tiles
-      state.tiles =  load_rects "data/level-1.txt"
-      state.goals =  load_rects "data/level-1-goals.txt"
-      state.spikes = load_rects "data/level-1-spikes.txt"
+      state.current_level = 1
+      state.tiles =  load_rects "data/level-#{state.current_level}.txt"
+      state.goals =  load_rects "data/level-#{state.current_level}-goals.txt"
+      state.spikes = load_rects "data/level-#{state.current_level}-spikes.txt"
     end
 
     if !state.camera
@@ -64,9 +65,9 @@ class Game
         target_x: 0,
         target_y: 0,
         target_scale: 0.75,
-        target_scale_changed_at: Kernel.tick_count,
+        target_scale_changed_at: 30,
         scale_lerp_duration: 30,
-        scale: 0.01,
+        scale: 0.25,
       }
     end
   end
@@ -159,6 +160,13 @@ class Game
 
   def calc_level_edit
     calc_preview
+
+    if inputs.keyboard.ctrl_s
+      save_rects "data/level-#{state.current_level}.txt", state.tiles
+      save_rects "data/level-#{state.current_level}-goals.txt", state.goals
+      save_rects "data/level-#{state.current_level}-spikes.txt", state.spikes
+      GTK.notify "Saved level-#{state.current_level}"
+    end
 
     state.level_editor_tile_type ||= :ground
     if inputs.keyboard.key_down.tab
