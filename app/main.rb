@@ -13,7 +13,6 @@ class Game
 
   def defaults
     state.gravity              ||= -1
-    state.player ||= {}
 
     player.x                   ||= 400
     player.y                   ||= 64
@@ -30,25 +29,26 @@ class Game
     player.collected_goals     ||= []
     player.dashes_left         ||= 5
     state.preview ||= []
-    state.dash_spline            = [
+    state.dash_spline          ||= [
       [0, 0.66, 1.0, 1.0]
     ]
 
     state.tile_size            ||= 64
     if !state.tiles
-      state.tiles =  load_rects "data/level-3.txt"
-      state.goals =  load_rects "data/level-3-goals.txt"
-      state.spikes = load_rects "data/level-3-spikes.txt"
+      state.tiles =  load_rects "data/level-1.txt"
+      state.goals =  load_rects "data/level-1-goals.txt"
+      state.spikes = load_rects "data/level-1-spikes.txt"
     end
 
     if !state.camera
       state.camera = {
-        x: 0,
-        y: 0,
+        x: player.x,
+        y: player.y,
         target_x: 0,
         target_y: 0,
         target_scale: 0.75,
-        scale: 0.75
+        target_scale_changed_at: Kernel.tick_count,
+        scale: 0.01,
       }
     end
   end
@@ -199,34 +199,31 @@ class Game
     end
 
     if inputs.keyboard.key_down.equal_sign || inputs.keyboard.key_down.plus
-      state.camera.target_scale += 0.25
+      state.camera.target_scale *= 1.25
+      state.camera.target_scale_changed_at = Kernel.tick_count
     elsif inputs.keyboard.key_down.minus
-      state.camera.target_scale -= 0.25
-      state.camera.target_scale = 0.25 if state.camera.target_scale < 0.25
+      state.camera.target_scale *= 0.75
+      if state.camera.target_scale < 0.10
+        state.camera.target_scale = 0.10
+        state.camera.target_scale_changed_at = Kernel.tick_count
+      end
     elsif inputs.keyboard.zero
       state.camera.target_scale = 1
     end
   end
 
   def calc_camera
-    if !state.camera
-      state.camera = {
-        x: 0,
-        y: 0,
-        target_x: 0,
-        target_y: 0,
-        target_scale: 1,
-        scale: 1
-      }
-    end
-
-    ease = 0.1
-    state.camera.scale += (state.camera.target_scale - state.camera.scale) * ease
+    ease = 0.01
+    perc = Easing.smooth_start(start_at: state.camera.target_scale_changed_at,
+                               duration: 30,
+                               tick_count: Kernel.tick_count,
+                               power: 3)
+    state.camera.scale = state.camera.scale.lerp(state.camera.target_scale, perc)
     state.camera.target_x = player.x
     state.camera.target_y = player.y
 
-    state.camera.x += (state.camera.target_x - state.camera.x) * ease
-    state.camera.y += (state.camera.target_y - state.camera.y) * ease
+    state.camera.x += (state.camera.target_x - state.camera.x) * 0.1
+    state.camera.y += (state.camera.target_y - state.camera.y) * 0.1
   end
 
   def calc_preview
