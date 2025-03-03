@@ -48,6 +48,7 @@ class Game
         target_y: 0,
         target_scale: 0.75,
         target_scale_changed_at: Kernel.tick_count,
+        scale_lerp_duration: 30,
         scale: 0.01,
       }
     end
@@ -199,23 +200,30 @@ class Game
     end
 
     if inputs.keyboard.key_down.equal_sign || inputs.keyboard.key_down.plus
-      state.camera.target_scale *= 1.25
-      state.camera.target_scale_changed_at = Kernel.tick_count
+      state.camera.target_scale /= 0.75
+      if state.camera.target_scale_changed_at && state.camera.target_scale_changed_at.elapsed_time >= state.camera.scale_lerp_duration
+        state.camera.target_scale_changed_at = Kernel.tick_count
+      end
     elsif inputs.keyboard.key_down.minus
       state.camera.target_scale *= 0.75
+      if state.camera.target_scale_changed_at && state.camera.target_scale_changed_at.elapsed_time >= state.camera.scale_lerp_duration
+        state.camera.target_scale_changed_at = Kernel.tick_count
+      end
       if state.camera.target_scale < 0.10
         state.camera.target_scale = 0.10
-        state.camera.target_scale_changed_at = Kernel.tick_count
       end
     elsif inputs.keyboard.zero
       state.camera.target_scale = 1
+      state.camera.target_scale_changed_at = Kernel.tick_count
     end
   end
 
   def calc_camera
+    return if !state.camera.target_scale_changed_at
+
     ease = 0.01
     perc = Easing.smooth_start(start_at: state.camera.target_scale_changed_at,
-                               duration: 30,
+                               duration: state.camera.scale_lerp_duration,
                                tick_count: Kernel.tick_count,
                                power: 3)
     state.camera.scale = state.camera.scale.lerp(state.camera.target_scale, perc)
@@ -332,9 +340,13 @@ class Game
   def render
     render_player
     render_tiles
-
+    render_level_editor
     outputs[:scene].w = 1500
     outputs[:scene].h = 1500
+    outputs.sprites << { **Camera.viewport, path: :scene }
+  end
+
+  def render_level_editor
     level_editor_mouse_prefab = case state.level_editor_tile_type
                                 when :ground
                                   state.level_editor_mouse_rect.merge(path: "sprites/square/white.png", a: 128)
@@ -345,8 +357,6 @@ class Game
                                 end
 
     outputs[:scene].primitives << Camera.to_screen_space(state.camera, level_editor_mouse_prefab)
-
-    outputs.sprites << { **Camera.viewport, path: :scene }
   end
 
   def render_player
