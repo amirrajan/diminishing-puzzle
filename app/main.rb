@@ -11,29 +11,46 @@ class Game
     outputs.watch "#{GTK.current_framerate} FPS"
   end
 
+  def new_player
+    {
+      x: 400,
+      y: 64,
+      w: 50,
+      h: 50,
+      dx: 0,
+      dy: 0,
+      on_ground: false,
+      facing_x: 1,
+      max_speed: 10,
+      jump_power: 29,
+      jumps_left: 5,
+      collected_goals: [],
+      dashes_left: 5,
+      is_dashing: false,
+      dashing_at: 0,
+      start_dash_x: 0,
+      end_dash_x: 0,
+      is_dead: false,
+      jump_at: 0,
+      started_falling_at: nil,
+      on_ground_at: 0
+    }
+  end
+
   def defaults
     state.gravity              ||= -1
 
-    player.x                   ||= 400
-    player.y                   ||= 64
-    player.w                   ||= 50
-    player.h                   ||= 50
-    player.dx                  ||= 0
-    player.dy                  ||= 0
-    player.on_ground           ||= false
-    player.facing_x            ||= 1
+    if Kernel.tick_count == 0
+      state.player = new_player
+    end
 
-    player.max_speed           ||= 10
-    player.jump_power          ||= 29
-    player.jumps_left          ||= 5
-    player.collected_goals     ||= []
-    player.dashes_left         ||= 5
     state.preview ||= []
-    state.dash_spline          ||= [
+    state.dash_spline ||= [
       [0, 0.66, 1.0, 1.0]
     ]
 
     state.tile_size            ||= 64
+
     if !state.tiles
       state.tiles =  load_rects "data/level-1.txt"
       state.goals =  load_rects "data/level-1-goals.txt"
@@ -240,18 +257,15 @@ class Game
     end
 
     if Kernel.tick_count.zmod? 60
-      entity = state.player.copy
-      entity.dx = 0
+      entity = state.player.merge(dx: 0, created_at: Kernel.tick_count)
       entity_jump entity
       state.preview << entity
 
-      entity = state.player.copy
-      entity.dx = state.player.max_speed
+      entity = state.player.merge(dx: player.max_speed, created_at: Kernel.tick_count)
       entity_jump entity
       state.preview << entity
 
-      entity = state.player.copy
-      entity.dx = -state.player.max_speed
+      entity = state.player.merge(dx: -player.max_speed, created_at: Kernel.tick_count)
       entity_jump entity
       state.preview << entity
     end
@@ -261,7 +275,7 @@ class Game
     end
 
     state.preview.reject! do |entity|
-      entity.on_ground_at && entity.on_ground_at.elapsed_time > 30 || entity.y < -64
+      entity.created_at.elapsed_time > 60
     end
   end
 
@@ -324,16 +338,7 @@ class Game
 
   def calc_game_over
     if player.y < -2000 || inputs.controller_one.key_down.start || player.is_dead
-      player.x = 400
-      player.y = 64
-      player.dx = 0
-      player.dy = 0
-      player.jump_power = 29
-      player.jumps_left = 5
-      player.dashes_left = 5
-      player.is_dashing = false
-      player.collected_goals = []
-      player.is_dead = false
+      state.player = new_player
     end
   end
 
@@ -389,7 +394,7 @@ class Game
   end
 
   def player
-    state.player ||= {}
+    state.player ||= new_player
   end
 
   def entity_jump target
