@@ -313,7 +313,8 @@ class Game
       elsif target.dy < 0
         target.y = collision.rect.y + collision.rect.h
         target.on_ground = true
-        target.on_ground_at ||= Kernel.tick_count
+        target.on_ground_at = Kernel.tick_count
+        target.started_falling_at = nil
       end
       target.dy = 0
       target.jump_at = nil
@@ -398,7 +399,7 @@ class Game
   end
 
   def entity_jump target
-    can_jump = target.on_ground || (target.started_falling_at && target.started_falling_at.elapsed_time < 4)
+    can_jump = target.on_ground || (target.started_falling_at && target.started_falling_at.elapsed_time < 5)
     return if !can_jump
 
     jump_power_lookup = {
@@ -411,7 +412,6 @@ class Game
     }
 
     target.jump_power = jump_power_lookup[target.jumps_left] || 0
-
     target.jumps_left -= 1
 
     target.dy = target.jump_power
