@@ -56,10 +56,7 @@ class Game
     state.tile_size            ||= 64
 
     if !state.tiles
-      state.current_level = 1
-      state.tiles =  load_rects "data/level-#{state.current_level}.txt"
-      state.goals =  load_rects "data/level-#{state.current_level}-goals.txt"
-      state.spikes = load_rects "data/level-#{state.current_level}-spikes.txt"
+      load_level 0
     end
 
     if !state.camera
@@ -74,6 +71,13 @@ class Game
         scale: 0.25,
       }
     end
+  end
+
+  def load_level number
+    state.current_level = number
+    state.tiles =  load_rects "data/level-#{state.current_level}.txt"
+    state.goals =  load_rects "data/level-#{state.current_level}-goals.txt"
+    state.spikes = load_rects "data/level-#{state.current_level}-spikes.txt"
   end
 
   def load_rects file_path
@@ -130,7 +134,7 @@ class Game
   end
 
   def input_dash
-    if inputs.controller_one.key_down.r1
+    if inputs.controller_one.key_down.r1 || inputs.keyboard.key_down.f || inputs.keyboard.key_down.l
       player.is_dashing = true
       player.dashing_at = Kernel.tick_count
       player.start_dash_x = player.x
@@ -153,7 +157,7 @@ class Game
 
   def calc_goals
     goal = Geometry.find_intersect_rect player, state.goals
-    if goal
+    if goal && !state.player.collected_goals.include?(goal)
       state.player.collected_goals << goal
     end
   end
@@ -304,12 +308,12 @@ class Game
     if target.is_dashing
       current_progress = Easing.spline target.dashing_at,
                                        Kernel.tick_count,
-                                       15,
+                                       15.fdiv(state.sim_dt).to_i,
                                        state.dash_spline
       target.x = target.start_dash_x
       diff = target.end_dash_x - target.x
       target.x += diff * current_progress
-      if target.dashing_at.elapsed_time >= 15
+      if target.dashing_at.elapsed_time >= 15.fdiv(state.sim_dt).to_i
         target.is_dashing = false
       end
     else
@@ -360,7 +364,13 @@ class Game
 
   def calc_game_over
     if player.y < -2000 || inputs.controller_one.key_down.start || player.is_dead
+      if player.collected_goals.length == state.goals.length
+        load_level state.current_level + 1
+      end
       state.player = new_player
+      state.camera.scale = 0.25
+      state.camera.target_scale = 0.75
+      state.camera.target_scale_changed_at = Kernel.tick_count + 30
     end
   end
 
