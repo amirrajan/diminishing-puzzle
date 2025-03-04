@@ -44,6 +44,10 @@ class Game
       state.player = new_player
     end
 
+    # simulation/physics DT (bullet time option)
+    state.sim_dt        ||= 1.0
+    state.target_sim_dt ||= 1.0
+
     state.preview ||= []
     state.dash_spline ||= [
       [0, 0.66, 1.0, 1.0]
@@ -102,6 +106,7 @@ class Game
     if inputs.keyboard.key_down.space || inputs.controller_one.key_down.a
       state.previous_player_state = player.copy
       entity_jump player
+      # state.target_sim_dt = 0.25
     end
   end
 
@@ -109,11 +114,17 @@ class Game
     if inputs.left
       player.dx -= player.max_speed
       player.facing_x = -1
+      player.left_at ||= Kernel.tick_count
+      player.right_at  = nil
     elsif inputs.right
       player.dx += player.max_speed
       player.facing_x =  1
+      player.right_at ||= Kernel.tick_count
+      player.left_at    = nil
     else
       player.dx = 0
+      player.left_at = nil
+      player.right_at = nil
     end
     player.dx = player.dx.clamp(-player.max_speed, player.max_speed)
   end
@@ -130,12 +141,14 @@ class Game
   end
 
   def calc
+    state.sim_dt = state.sim_dt.lerp(state.target_sim_dt, 0.1)
     calc_physics player
     calc_goals
     calc_spikes
     calc_game_over
     calc_level_edit
     calc_camera
+    # state.target_sim_dt = 1.0 if player.on_ground
   end
 
   def calc_goals
@@ -283,7 +296,7 @@ class Game
     end
 
     state.preview.reject! do |entity|
-      entity.created_at.elapsed_time > 60
+      entity.created_at.elapsed_time > 60 / state.sim_dt
     end
   end
 
@@ -300,7 +313,7 @@ class Game
         target.is_dashing = false
       end
     else
-      target.x  += target.dx
+      target.x  += target.dx * state.sim_dt
     end
 
     collision = Geometry.find_intersect_rect target, state.tiles
@@ -313,7 +326,7 @@ class Game
       end
     end
 
-    target.y += target.dy
+    target.y += target.dy * state.sim_dt
     collision = Geometry.find_intersect_rect target, state.tiles
     if collision
       if target.dy > 0
@@ -335,12 +348,12 @@ class Game
     if target.is_dashing
       target.dy = 0
     else
-      target.dy = target.dy + state.gravity
+      target.dy = target.dy + state.gravity * state.sim_dt
     end
     drop_fast = target.dy < 0
     if drop_fast
-      target.dy = target.dy + state.gravity
-      target.dy = target.dy + state.gravity
+      target.dy = target.dy + state.gravity * state.sim_dt
+      target.dy = target.dy + state.gravity * state.sim_dt
     end
     target.dy = target.dy.clamp(-state.tile_size, state.tile_size)
   end
@@ -407,7 +420,7 @@ class Game
   end
 
   def entity_jump target
-    can_jump = target.on_ground || (target.started_falling_at && target.started_falling_at.elapsed_time < 5)
+    can_jump = target.on_ground || (target.started_falling_at && target.started_falling_at.elapsed_time < (5 / state.sim_dt))
     return if !can_jump
 
     jump_power_lookup = {
@@ -442,3 +455,4 @@ def reset args
 end
 
 # GTK.reset_and_replay "replay.txt", speed: 3
+# GTK.reset
