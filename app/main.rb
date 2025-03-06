@@ -287,11 +287,16 @@ class Game
                                tick_count: Kernel.tick_count,
                                power: 3)
     state.camera.scale = state.camera.scale.lerp(state.camera.target_scale, perc)
-    state.camera.target_x = player.x
-    state.camera.target_y = player.y
+    state.camera.target_x = state.camera.target_x.lerp(player.x, 0.1)
+    state.camera.target_y = state.camera.target_y.lerp(player.y, 0.1)
 
     state.camera.x += (state.camera.target_x - state.camera.x) * 0.1
     state.camera.y += (state.camera.target_y - state.camera.y) * 0.1
+
+    if player.dy.abs >= 49 && state.camera.target_scale != 0.25
+      state.camera.target_scale = 0.25
+      state.camera.target_scale_changed_at = Kernel.tick_count
+    end
   end
 
   def calc_preview
@@ -384,7 +389,7 @@ class Game
   end
 
   def calc_game_over
-    if player.y < -2000 || inputs.controller_one.key_down.start || player.is_dead
+    if player.y < -3000 || inputs.controller_one.key_down.start || player.is_dead
       if player.collected_goals.length == state.goals.length
         load_level state.current_level + 1
       end
@@ -402,13 +407,14 @@ class Game
   end
 
   def render
+    render_parallax_background
     render_player
     render_tiles
     render_level_editor
     render_audio
     outputs[:scene].w = 1500
     outputs[:scene].h = 1500
-    outputs.sprites << { **Camera.viewport, path: :scene }
+    outputs.primitives << { **Camera.viewport, path: :scene }
   end
 
   def render_audio
@@ -441,7 +447,7 @@ class Game
 
     outputs[:scene].primitives << Camera.to_screen_space(state.camera, level_editor_mouse_prefab)
 
-    outputs[:scene].sprites << state.preview.map do |t|
+    outputs[:scene].primitives << state.preview.map do |t|
       player_prefab(t).merge(a: 128)
     end
   end
@@ -461,11 +467,11 @@ class Game
   end
 
   def render_player
-    outputs[:scene].sprites << player_prefab(player)
+    outputs[:scene].primitives << player_prefab(player)
   end
 
   def render_tiles
-    outputs[:scene].sprites << state.tiles.map do |t|
+    outputs[:scene].primitives << state.tiles.map do |t|
       Camera.to_screen_space(state.camera, t.merge(path: 'sprites/square/white.png'))
     end
 
@@ -473,11 +479,11 @@ class Game
                        Geometry.find_intersect_rect g, state.player.collected_goals
                       end
 
-    outputs[:scene].sprites << remaining_goals.map do |t|
+    outputs[:scene].primitives << remaining_goals.map do |t|
       Camera.to_screen_space(state.camera, t.merge(path: 'sprites/square/yellow.png'))
     end
 
-    outputs[:scene].sprites << state.spikes.map do |t|
+    outputs[:scene].primitives << state.spikes.map do |t|
       Camera.to_screen_space state.camera, t.merge(path: 'sprites/square/red.png')
     end
   end
@@ -509,6 +515,52 @@ class Game
     target.dy = target.jump_power
     target.jump_at = Kernel.tick_count
     action! target, :jump
+  end
+
+  def render_parallax_background
+    bg_x_parallax = -state.camera.target_x / 5
+    bg_y_parallax = -state.camera.target_y / 5
+    sz = 1500
+
+    outputs[:scene].primitives << {
+      x: 750 - sz + (bg_x_parallax + sz).clamp_wrap(0, sz * 2),
+      y: 750 - sz + (bg_y_parallax + sz).clamp_wrap(0, sz * 2),
+      w: sz + 1,
+      h: sz + 1,
+      path: "sprites/bg.png",
+      anchor_y: 0.5,
+      anchor_x: 0.5
+    }
+
+    outputs[:scene].primitives << {
+      x: 750 - sz + (bg_x_parallax + sz).clamp_wrap(0, sz * 2),
+      y: 750 - sz + (bg_y_parallax).clamp_wrap(0, sz * 2),
+      w: sz + 1,
+      h: sz + 1,
+      path: "sprites/bg.png",
+      anchor_y: 0.5,
+      anchor_x: 0.5
+    }
+
+    outputs[:scene].primitives << {
+      x: 750 - sz + (bg_x_parallax).clamp_wrap(0, sz * 2),
+      y: 750 - sz + (bg_y_parallax).clamp_wrap(0, sz * 2),
+      w: sz + 1,
+      h: sz + 1,
+      path: "sprites/bg.png",
+      anchor_y: 0.5,
+      anchor_x: 0.5
+    }
+
+    outputs[:scene].primitives << {
+      x: 750 - sz + (bg_x_parallax).clamp_wrap(0, sz * 2),
+      y: 750 - sz + (bg_y_parallax + sz).clamp_wrap(0, sz * 2),
+      w: sz + 1,
+      h: sz + 1,
+      path: "sprites/bg.png",
+      anchor_y: 0.5,
+      anchor_x: 0.5
+    }
   end
 end
 
