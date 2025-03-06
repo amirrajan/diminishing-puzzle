@@ -145,7 +145,6 @@ class Game
     if inputs.keyboard.key_down.space || inputs.controller_one.key_down.a
       state.previous_player_state = player.copy
       entity_jump player
-      # state.target_sim_dt = 0.25
     end
   end
 
@@ -153,8 +152,6 @@ class Game
     if inputs.left
       if player.on_ground
         action! player, :walk
-      else
-        action! player, :jump
       end
       player.dx -= player.max_speed
       player.facing_x = -1
@@ -163,15 +160,15 @@ class Game
     elsif inputs.right
       if player.on_ground
         action! player, :walk
-      else
-        action! player, :jump
       end
       player.dx += player.max_speed
       player.facing_x =  1
       player.right_at ||= Kernel.tick_count
       player.left_at    = nil
     else
-      action! player, :idle
+      if player.on_ground
+        action! player, :idle
+      end
       player.dx = 0
       player.left_at = nil
       player.right_at = nil
@@ -666,6 +663,7 @@ class Game
 
     target.dy = target.jump_power
     target.jump_at = Kernel.tick_count
+    target.on_ground = false
     action! target, :jump
   end
 
