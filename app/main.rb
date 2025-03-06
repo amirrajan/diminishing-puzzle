@@ -50,11 +50,16 @@ class Game
           repeat: true
         },
         dash: {
-          frame_count: 1,
-          hold_for: 4,
+          frame_count: 16,
+          hold_for: 1,
           repeat: true
-        }
-      }
+        },
+        walk: {
+          frame_count: 16,
+          hold_for: 2,
+          repeat: true
+        },
+      },
     }
   end
 
@@ -141,16 +146,27 @@ class Game
 
   def input_move
     if inputs.left
+      if player.on_ground
+        action! player, :walk
+      else
+        action! player, :jump
+      end
       player.dx -= player.max_speed
       player.facing_x = -1
       player.left_at ||= Kernel.tick_count
       player.right_at  = nil
     elsif inputs.right
+      if player.on_ground
+        action! player, :walk
+      else
+        action! player, :jump
+      end
       player.dx += player.max_speed
       player.facing_x =  1
       player.right_at ||= Kernel.tick_count
       player.left_at    = nil
     else
+      action! player, :idle
       player.dx = 0
       player.left_at = nil
       player.right_at = nil
@@ -371,10 +387,10 @@ class Game
         target.is_dashing = false
       end
       if Kernel.tick_count.zmod? 2
-        state.particles << { x: target.x,
-                             y: target.y,
-                             w: target.w,
-                             h: target.h,
+        state.particles << { x: target.x - 32,
+                             y: target.y - 32,
+                             w: 128,
+                             h: 128,
                              a: 200,
                              da: -10,
                              path: "sprites/player/dash/1.png" }
@@ -387,7 +403,6 @@ class Game
     if collision
       target.dx = 0
       target.is_dashing = false
-      action! target, :idle
       if target.facing_x > 0
         target.x = collision.rect.x - target.w
       elsif target.facing_x < 0
@@ -405,7 +420,6 @@ class Game
         target.on_ground = true
         if target.is_dashing
         else
-          action! target, :idle
           target.on_ground_at = Kernel.tick_count
           target.started_falling_at = nil
         end
@@ -527,9 +541,12 @@ class Game
                                        frame_count: animation.frame_count,
                                        hold_for: animation.hold_for.fdiv(state.sim_dt).to_i,
                                        repeat: animation.repeat)
-
+    #  player sprite is 128x128 and centered, hence the -32
+    render_rect = target.merge(w: 128, h: 128)
+    render_rect.x -= 32
+    render_rect.y -= 32
     target_prefab = Camera.to_screen_space state.camera,
-                                           target.merge(path: "sprites/player/#{target.action}/#{sprite_index + 1}.png",
+                                           render_rect.merge(path: "sprites/player/#{target.action}/#{sprite_index + 1}.png",
                                                         flip_horizontally: target.facing_x < 0)
 
   end
