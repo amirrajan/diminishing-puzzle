@@ -6,5 +6,5 @@ version=1.0
 icon=metadata/icon.png
 hd=true
 highdpi=true
-hd_max_scale=400
+hd_max_scale=0
 hd_letterbox=false

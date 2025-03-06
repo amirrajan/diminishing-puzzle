@@ -108,6 +108,7 @@ class Game
     state.goals =  load_rects "data/level-#{state.current_level}-goals.txt"
     state.spikes = load_rects "data/level-#{state.current_level}-spikes.txt"
     state.lowest_tile_y = state.tiles.map { |t| t.ordinal_y }.min * state.tile_size
+    state.level_loaded_at = Kernel.tick_count
   end
 
   def load_rects file_path
@@ -131,9 +132,13 @@ class Game
   end
 
   def input
-    input_jump
-    input_move
-    input_dash
+    if state.level_completed
+      player.dx *= 0.90
+    else
+      input_jump
+      input_move
+      input_dash
+    end
   end
 
   def input_jump
@@ -198,7 +203,23 @@ class Game
     calc_level_edit
     calc_camera
     calc_particles
+    calc_level_complete
     # state.target_sim_dt = 1.0 if player.on_ground
+  end
+
+  def calc_level_complete
+    return if !state.level_completed
+
+    if state.level_completed_at.elapsed_time == 60
+      load_level state.current_level + 1
+      state.player = new_player
+      state.camera.scale = 0.25
+      state.camera.target_scale = 0.75
+      state.camera.target_scale_changed_at = Kernel.tick_count + 30
+    elsif state.level_completed_at.elapsed_time > 90
+      state.level_completed = false
+      state.level_completed_at = nil
+    end
   end
 
   def calc_particles
@@ -216,9 +237,16 @@ class Game
   end
 
   def calc_goals
+    outputs.watch "state.level_completed: #{state.level_completed}"
+    outputs.watch "state.level_completed_at: #{state.level_completed_at}"
     goal = Geometry.find_intersect_rect player, state.goals
     if goal && !state.player.collected_goals.include?(goal)
       state.player.collected_goals << goal
+    end
+
+    if player.collected_goals.length == state.goals.length && !state.level_completed
+      state.level_completed = true
+      state.level_completed_at = Kernel.tick_count
     end
   end
 
@@ -338,7 +366,7 @@ class Game
     state.camera.x += (state.camera.target_x - state.camera.x) * 0.1
     state.camera.y += (state.camera.target_y - state.camera.y) * 0.1
 
-    if player.y - 64 < state.lowest_tile_y && state.camera.target_scale > 0.25
+    if player.y + 64 < state.lowest_tile_y && state.camera.target_scale > 0.25
       state.camera.target_scale = 0.25
       state.camera.target_scale_changed_at = Kernel.tick_count
     end
@@ -447,9 +475,6 @@ class Game
 
   def calc_game_over
     if player.y < -3000 || inputs.controller_one.key_down.start || player.is_dead
-      if player.collected_goals.length == state.goals.length
-        load_level state.current_level + 1
-      end
       state.player = new_player
       state.camera.scale = 0.25
       state.camera.target_scale = 0.75
@@ -464,6 +489,7 @@ class Game
   end
 
   def render
+    outputs.background_color = [0, 0, 0]
     render_parallax_background
     render_particles
     render_player
@@ -473,6 +499,47 @@ class Game
     outputs[:scene].w = 1500
     outputs[:scene].h = 1500
     outputs.primitives << { **Camera.viewport, path: :scene }
+    render_level_complete
+  end
+
+  def render_level_complete
+    return if !state.level_completed
+
+    if state.level_completed_at.elapsed_time < 60
+      perc = Easing.smooth_start(start_at: state.level_completed_at,
+                                 duration: 60,
+                                 tick_count: Kernel.tick_count,
+                                 power: 3)
+
+      outputs.primitives << {
+        x: (-Grid.allscreen_w + Grid.allscreen_w * perc) + Grid.allscreen_x,
+        y: Grid.allscreen_y,
+        w: Grid.allscreen_w,
+        h: Grid.allscreen_h,
+        a: 255 * state.level_completed_at.elapsed_time.fdiv(60),
+        path: :solid,
+        r: 0,
+        g: 0,
+        b: 0
+      }
+    else
+      perc = Easing.smooth_start(start_at: state.level_completed_at + 60,
+                                 duration: 30,
+                                 tick_count: Kernel.tick_count,
+                                 power: 3)
+
+      outputs.primitives << {
+        x: (Grid.allscreen_w * perc) + Grid.allscreen_x,
+        y: Grid.allscreen_y,
+        w: Grid.allscreen_w,
+        h: Grid.allscreen_h,
+        a: 255 * state.level_completed_at.elapsed_time.fdiv(30),
+        path: :solid,
+        r: 0,
+        g: 0,
+        b: 0
+      }
+    end
   end
 
   def render_particles
