@@ -13,7 +13,7 @@ class Game
 
   def new_player
     {
-      x: 330,
+      x: 320,
       y: 64,
       w: 50,
       h: 50,
