@@ -16,6 +16,8 @@ class Camera
     end
 
     def to_screen_space camera, rect
+      return nil if !rect
+
       x = rect.x * camera.scale - camera.x * camera.scale + WORLD_SIZE_HALF
       y = rect.y * camera.scale - camera.y * camera.scale + WORLD_SIZE_HALF
       w = rect.w * camera.scale

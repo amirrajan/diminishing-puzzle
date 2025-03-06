@@ -23,7 +23,8 @@ class Game
       facing_x: 1,
       max_speed: 10,
       jump_power: 29,
-      jumps_left: 5,
+      jumps_left: 6,
+      jumps_performed: 0,
       collected_goals: [],
       dashes_left: 5,
       is_dashing: false,
@@ -33,7 +34,21 @@ class Game
       is_dead: false,
       jump_at: 0,
       started_falling_at: nil,
-      on_ground_at: 0
+      on_ground_at: 0,
+      action: :idle,
+      action_at: 0,
+      animations: {
+        idle: {
+          frame_count: 16,
+          hold_for: 4,
+          repeat: true
+        },
+        jump: {
+          frame_count: 2,
+          hold_for: 4,
+          repeat: true
+        }
+      }
     }
   end
 
@@ -42,6 +57,7 @@ class Game
 
     if Kernel.tick_count == 0
       state.player = new_player
+      state.level_editor_enabled = !GTK.production?
     end
 
     # simulation/physics DT (bullet time option)
@@ -176,6 +192,8 @@ class Game
   end
 
   def calc_level_edit
+    return if !state.level_editor_enabled
+
     calc_preview
 
     if inputs.keyboard.ctrl_s
@@ -277,6 +295,8 @@ class Game
   end
 
   def calc_preview
+    return if !state.level_editor_enabled
+
     if inputs.keyboard.key_held.nine
       GTK.slowmo! 30
     end
@@ -338,6 +358,7 @@ class Game
       elsif target.dy < 0
         target.y = collision.rect.y + collision.rect.h
         target.on_ground = true
+        action! target, :idle
         target.on_ground_at = Kernel.tick_count
         target.started_falling_at = nil
       end
@@ -374,16 +395,41 @@ class Game
     end
   end
 
+  def action! target, action
+    return if target.action == action
+    target.action = action
+    target.action_at = Kernel.tick_count
+  end
+
   def render
     render_player
     render_tiles
     render_level_editor
+    render_audio
     outputs[:scene].w = 1500
     outputs[:scene].h = 1500
     outputs.sprites << { **Camera.viewport, path: :scene }
   end
 
+  def render_audio
+    audio[:bg] ||= {
+      input: "sounds/bg.ogg",
+      gain: 0,
+      looping: true
+    }
+
+    audio[:bg].gain += 0.01
+    audio[:bg].gain = audio[:bg].gain.clamp(0, 1)
+
+    if player.action == :jump && player.action_at == Kernel.tick_count
+      jump_index = player.jumps_performed.clamp(0, 6)
+      audio[:jump] = { input: "sounds/jump-#{jump_index}.ogg" }
+    end
+  end
+
   def render_level_editor
+    return if !state.level_editor_enabled
+
     level_editor_mouse_prefab = case state.level_editor_tile_type
                                 when :ground
                                   state.level_editor_mouse_rect.merge(path: "sprites/square/white.png", a: 128)
@@ -394,17 +440,28 @@ class Game
                                 end
 
     outputs[:scene].primitives << Camera.to_screen_space(state.camera, level_editor_mouse_prefab)
+
+    outputs[:scene].sprites << state.preview.map do |t|
+      player_prefab(t).merge(a: 128)
+    end
+  end
+
+  def player_prefab target
+    animation = target.animations[target.action]
+
+    sprite_index = Numeric.frame_index(start_at: target.action_at,
+                                       frame_count: animation.frame_count,
+                                       hold_for: animation.hold_for.fdiv(state.sim_dt).to_i,
+                                       repeat: animation.repeat)
+
+    target_prefab = Camera.to_screen_space state.camera,
+                                           target.merge(path: "sprites/player/#{target.action}/#{sprite_index + 1}.png",
+                                                        flip_horizontally: target.facing_x < 0)
+
   end
 
   def render_player
-    player_prefab = Camera.to_screen_space state.camera,
-                                           player.merge(path: "sprites/square/green.png", flip_horizontally: player.facing_x < 0)
-
-    outputs[:scene].sprites << player_prefab
-
-    outputs[:scene].sprites << state.preview.map do |t|
-      Camera.to_screen_space state.camera, (t.merge path: "sprites/square/blue.png", a: 128)
-    end
+    outputs[:scene].sprites << player_prefab(player)
   end
 
   def render_tiles
@@ -434,19 +491,24 @@ class Game
     return if !can_jump
 
     jump_power_lookup = {
-      5 => 27,
-      4 => 24,
-      3 => 21,
-      2 => 17,
-      1 => 13,
-      0 => 0
+      6 => 27,
+      5 => 24,
+      4 => 21,
+      3 => 17,
+      2 => 13,
+      1 => 4,
+      0 => 4
     }
 
     target.jump_power = jump_power_lookup[target.jumps_left] || 0
+    target.jumps_performed += 1
+    target.jumps_performed = target.jumps_performed.clamp(0, 6)
     target.jumps_left -= 1
+    target.jumps_left = target.jumps_left.clamp(0, 6)
 
     target.dy = target.jump_power
     target.jump_at = Kernel.tick_count
+    action! target, :jump
   end
 end
 
