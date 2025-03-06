@@ -177,6 +177,9 @@ class Game
   end
 
   def input_dash
+    return if player.is_dashing
+    return if state.current_level < 3 # dash disabed for levels 0, 1, and 2
+
     if inputs.controller_one.key_down.r1 || inputs.keyboard.key_down.f || inputs.keyboard.key_down.l
       player.is_dashing = true
       player.dashing_at = Kernel.tick_count
@@ -187,6 +190,7 @@ class Game
       player.dashes_left = player.dashes_left.clamp(0, 6)
       player.dashes_performed += 1
       player.dashes_performed = player.dashes_performed.clamp(0, 6)
+      audio[:dash] = { input: "sounds/dash-#{player.dashes_performed}.ogg" }
     end
   end
 
@@ -314,14 +318,10 @@ class Game
         target_rects << { ordinal_x: rect.x.idiv(64), ordinal_y: rect.y.idiv(64) }
       end
 
-      save_rects "data/temp.txt", state.tiles
-      state.tiles = load_rects "data/temp.txt"
-
-      save_rects "data/temp-goals.txt", state.goals
-      state.goals = load_rects "data/temp-goals.txt"
-
-      save_rects "data/temp-spikes.txt", state.spikes
-      state.spikes = load_rects "data/temp-spikes.txt"
+      save_rects "data/level-#{state.current_level}.txt", state.tiles
+      save_rects "data/level-#{state.current_level}-goals.txt", state.goals
+      save_rects "data/level-#{state.current_level}-spikes.txt", state.spikes
+      load_level state.current_level
     end
 
     if inputs.controller_one.key_down.select || inputs.keyboard.key_down.u
@@ -360,8 +360,8 @@ class Game
     state.camera.target_x = state.camera.target_x.lerp(player.x, 0.1)
     state.camera.target_y = state.camera.target_y.lerp(player.y, 0.1)
 
-    state.camera.x += (state.camera.target_x - state.camera.x) * 0.1
-    state.camera.y += (state.camera.target_y - state.camera.y) * 0.1
+    state.camera.x += (state.camera.target_x - state.camera.x) * 0.9
+    state.camera.y += (state.camera.target_y - state.camera.y) * 0.9
 
     if player.y + 64 < state.lowest_tile_y && state.camera.target_scale > 0.25
       state.camera.target_scale = 0.25
@@ -462,11 +462,11 @@ class Game
     else
       target.dy = target.dy + state.gravity * state.sim_dt
     end
-    drop_fast = target.dy < 0
-    if drop_fast
-      target.dy = target.dy + state.gravity * state.sim_dt
-      target.dy = target.dy + state.gravity * state.sim_dt
-    end
+    # drop_fast = target.dy < 0
+    # if drop_fast
+    #   target.dy = target.dy + state.gravity * state.sim_dt
+    #   target.dy = target.dy + state.gravity * state.sim_dt
+    # end
     target.dy = target.dy.clamp(-state.tile_size, state.tile_size)
   end
 
@@ -568,12 +568,7 @@ class Game
     audio[:bg].gain = audio[:bg].gain.clamp(0, 1)
 
     if player.action == :jump && player.action_at == Kernel.tick_count
-      jump_index = player.jumps_performed.clamp(0, 6)
-      audio[:jump] = { input: "sounds/jump-#{jump_index}.ogg" }
     elsif player.action == :dash && player.action_at == Kernel.tick_count
-      dash_index = player.dashes_performed.clamp(0, 6)
-      puts "dash_index: #{dash_index}"
-      audio[:dash] = { input: "sounds/dash-#{dash_index}.ogg" }
     end
   end
 
@@ -643,6 +638,7 @@ class Game
 
   def entity_jump target
     can_jump = target.on_ground || (target.started_falling_at && target.started_falling_at.elapsed_time < (5 / state.sim_dt))
+
     return if !can_jump
 
     jump_power_lookup = {
@@ -665,6 +661,12 @@ class Game
     target.jump_at = Kernel.tick_count
     target.on_ground = false
     action! target, :jump
+
+    # only play sound if it's the player (not preview/level editor players
+    if target == player
+      jump_index = target.jumps_performed.clamp(0, 6)
+      audio[:jump] = { input: "sounds/jump-#{jump_index}.ogg" }
+    end
   end
 
   def render_parallax_background
