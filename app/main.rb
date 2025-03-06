@@ -26,6 +26,7 @@ class Game
       jumps_left: 6,
       jumps_performed: 0,
       collected_goals: [],
+      dashes_performed: 0,
       dashes_left: 5,
       is_dashing: false,
       dashing_at: 0,
@@ -47,6 +48,11 @@ class Game
           frame_count: 2,
           hold_for: 4,
           repeat: true
+        },
+        dash: {
+          frame_count: 1,
+          hold_for: 4,
+          repeat: true
         }
       }
     }
@@ -55,9 +61,11 @@ class Game
   def defaults
     state.gravity              ||= -1
 
+    state.particles ||= []
+
     if Kernel.tick_count == 0
       state.player = new_player
-      state.level_editor_enabled = !GTK.production?
+      state.level_editor_enabled = GTK.production?
     end
 
     # simulation/physics DT (bullet time option)
@@ -94,6 +102,7 @@ class Game
     state.tiles =  load_rects "data/level-#{state.current_level}.txt"
     state.goals =  load_rects "data/level-#{state.current_level}-goals.txt"
     state.spikes = load_rects "data/level-#{state.current_level}-spikes.txt"
+    state.lowest_tile_y = state.tiles.map { |t| t.ordinal_y }.min * state.tile_size
   end
 
   def load_rects file_path
@@ -153,14 +162,18 @@ class Game
     if inputs.controller_one.key_down.r1 || inputs.keyboard.key_down.f || inputs.keyboard.key_down.l
       player.is_dashing = true
       player.dashing_at = Kernel.tick_count
+      action! player, :dash
       player.start_dash_x = player.x
       player.end_dash_x = player.x + state.tile_size * player.dashes_left * player.facing_x
       player.dashes_left -= 1
-      player.dashes_left = player.dashes_left.clamp(0, 5)
+      player.dashes_left = player.dashes_left.clamp(0, 6)
+      player.dashes_performed += 1
+      player.dashes_performed = player.dashes_performed.clamp(0, 6)
     end
   end
 
   def calc
+    outputs.watch "player: #{player.action}"
     state.sim_dt = state.sim_dt.lerp(state.target_sim_dt, 0.1)
     calc_physics player
     calc_goals
@@ -168,7 +181,22 @@ class Game
     calc_game_over
     calc_level_edit
     calc_camera
+    calc_particles
     # state.target_sim_dt = 1.0 if player.on_ground
+  end
+
+  def calc_particles
+    state.particles.each do |particle|
+      particle.start_at ||= Kernel.tick_count
+      particle.a ||= 255
+      particle.da ||= -1
+      next if particle.start_at > Kernel.tick_count
+      particle.a += particle.da
+    end
+
+    state.particles.reject! do |particle|
+      particle.a <= 0
+    end
   end
 
   def calc_goals
@@ -286,6 +314,7 @@ class Game
                                duration: state.camera.scale_lerp_duration,
                                tick_count: Kernel.tick_count,
                                power: 3)
+
     state.camera.scale = state.camera.scale.lerp(state.camera.target_scale, perc)
     state.camera.target_x = state.camera.target_x.lerp(player.x, 0.1)
     state.camera.target_y = state.camera.target_y.lerp(player.y, 0.1)
@@ -293,7 +322,7 @@ class Game
     state.camera.x += (state.camera.target_x - state.camera.x) * 0.1
     state.camera.y += (state.camera.target_y - state.camera.y) * 0.1
 
-    if player.dy.abs >= 49 && state.camera.target_scale != 0.25
+    if player.y - 64 < state.lowest_tile_y && state.camera.target_scale > 0.25
       state.camera.target_scale = 0.25
       state.camera.target_scale_changed_at = Kernel.tick_count
     end
@@ -341,16 +370,27 @@ class Game
       if target.dashing_at.elapsed_time >= 15.fdiv(state.sim_dt).to_i
         target.is_dashing = false
       end
+      if Kernel.tick_count.zmod? 2
+        state.particles << { x: target.x,
+                             y: target.y,
+                             w: target.w,
+                             h: target.h,
+                             a: 200,
+                             da: -10,
+                             path: "sprites/player/dash/1.png" }
+      end
     else
       target.x  += target.dx * state.sim_dt
     end
 
     collision = Geometry.find_intersect_rect target, state.tiles
     if collision
+      target.dx = 0
       target.is_dashing = false
-      if target.dx > 0
+      action! target, :idle
+      if target.facing_x > 0
         target.x = collision.rect.x - target.w
-      elsif target.dx < 0
+      elsif target.facing_x < 0
         target.x = collision.rect.x + collision.rect.w
       end
     end
@@ -363,9 +403,12 @@ class Game
       elsif target.dy < 0
         target.y = collision.rect.y + collision.rect.h
         target.on_ground = true
-        action! target, :idle
-        target.on_ground_at = Kernel.tick_count
-        target.started_falling_at = nil
+        if target.is_dashing
+        else
+          action! target, :idle
+          target.on_ground_at = Kernel.tick_count
+          target.started_falling_at = nil
+        end
       end
       target.dy = 0
       target.jump_at = nil
@@ -408,6 +451,7 @@ class Game
 
   def render
     render_parallax_background
+    render_particles
     render_player
     render_tiles
     render_level_editor
@@ -417,6 +461,24 @@ class Game
     outputs.primitives << { **Camera.viewport, path: :scene }
   end
 
+  def render_particles
+    outputs[:scene].primitives << state.particles.map do |particle|
+      Camera.to_screen_space state.camera, particle
+    end
+  end
+
+  # ffmpeg -i ./mygame/sounds/jump-1.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/jump-1.ogg
+  # ffmpeg -i ./mygame/sounds/jump-2.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/jump-2.ogg
+  # ffmpeg -i ./mygame/sounds/jump-3.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/jump-3.ogg
+  # ffmpeg -i ./mygame/sounds/jump-4.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/jump-4.ogg
+  # ffmpeg -i ./mygame/sounds/jump-5.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/jump-5.ogg
+  # ffmpeg -i ./mygame/sounds/jump-6.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/jump-6.ogg
+  # ffmpeg -i ./mygame/sounds/dash-1.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/dash-1.ogg
+  # ffmpeg -i ./mygame/sounds/dash-2.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/dash-2.ogg
+  # ffmpeg -i ./mygame/sounds/dash-3.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/dash-3.ogg
+  # ffmpeg -i ./mygame/sounds/dash-4.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/dash-4.ogg
+  # ffmpeg -i ./mygame/sounds/dash-5.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/dash-5.ogg
+  # ffmpeg -i ./mygame/sounds/dash-6.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/dash-6.ogg
   def render_audio
     audio[:bg] ||= {
       input: "sounds/bg.ogg",
@@ -430,6 +492,10 @@ class Game
     if player.action == :jump && player.action_at == Kernel.tick_count
       jump_index = player.jumps_performed.clamp(0, 6)
       audio[:jump] = { input: "sounds/jump-#{jump_index}.ogg" }
+    elsif player.action == :dash && player.action_at == Kernel.tick_count
+      dash_index = player.dashes_performed.clamp(0, 6)
+      puts "dash_index: #{dash_index}"
+      audio[:dash] = { input: "sounds/dash-#{dash_index}.ogg" }
     end
   end
 
@@ -454,6 +520,8 @@ class Game
 
   def player_prefab target
     animation = target.animations[target.action]
+
+    raise "No animation found in target.animations: #{pretty_format target.animations} hash for #{target.action}" if !animation
 
     sprite_index = Numeric.frame_index(start_at: target.action_at,
                                        frame_count: animation.frame_count,
