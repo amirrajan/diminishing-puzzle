@@ -70,7 +70,7 @@ class Game
 
     if Kernel.tick_count == 0
       state.player = new_player
-      state.level_editor_enabled = GTK.production?
+      state.level_editor_enabled = !GTK.production?
     end
 
     # simulation/physics DT (bullet time option)
@@ -107,7 +107,7 @@ class Game
     state.tiles =  load_rects "data/level-#{state.current_level}.txt"
     state.goals =  load_rects "data/level-#{state.current_level}-goals.txt"
     state.spikes = load_rects "data/level-#{state.current_level}-spikes.txt"
-    state.lowest_tile_y = state.tiles.map { |t| t.ordinal_y }.min * state.tile_size
+    state.lowest_tile_y = (state.tiles.map { |t| t.ordinal_y }.min || 0) * state.tile_size
     state.level_loaded_at = Kernel.tick_count
   end
 
