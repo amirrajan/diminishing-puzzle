@@ -176,9 +176,13 @@ class Game
     player.dx = player.dx.clamp(-player.max_speed, player.max_speed)
   end
 
+  def dash_unlocked?
+    state.current_level >= 3
+  end
+
   def input_dash
+    return if !dash_unlocked?
     return if player.is_dashing
-    return if state.current_level < 3 # dash disabed for levels 0, 1, and 2
 
     if inputs.controller_one.key_down.r1 || inputs.keyboard.key_down.f || inputs.keyboard.key_down.l
       player.is_dashing = true
@@ -497,6 +501,23 @@ class Game
     outputs[:scene].h = 1500
     outputs.primitives << { **Camera.viewport, path: :scene }
     render_level_complete
+    render_instructions
+  end
+
+  def render_instructions
+    if inputs.last_active == :controller
+      if dash_unlocked?
+        outputs.labels << { x: 640, y: 32, text: "[D-PAD]: Move, [A/X]: Jump, [R1]: Dash", anchor_x: 0.5, anchor_y: 0.5 }
+      else
+        outputs.labels << { x: 640, y: 32, text: "[D-PAD]: Move, [A/X]: Jump", anchor_x: 0.5, anchor_y: 0.5 }
+      end
+    else
+      if dash_unlocked?
+        outputs.labels << { x: 640, y: 32, text: "[WASD/Arrows]: Move, [SPACE]: Jump, [F/L]: Dash", anchor_x: 0.5, anchor_y: 0.5 }
+      else
+        outputs.labels << { x: 640, y: 32, text: "[WASD/Arrows]: Move, [SPACE]: Jump", anchor_x: 0.5, anchor_y: 0.5 }
+      end
+    end
   end
 
   def render_level_complete
