@@ -9,6 +9,8 @@ class Game
     calc
     render
     outputs.watch "#{GTK.current_framerate} FPS"
+    outputs.watch "player: #{player.action}"
+    outputs.watch "sim_dt: #{state.sim_dt}"
   end
 
   def new_player
@@ -59,8 +61,22 @@ class Game
           hold_for: 2,
           repeat: true
         },
+        dance: {
+          frame_count: 16,
+          hold_for: 1,
+          repeat: true
+        },
+        dead: {
+          frame_count: 16,
+          hold_for: 1,
+          repeat: true
+        },
       },
     }
+  end
+
+  def disable_level_editor!
+    state.level_editor_enabled = false
   end
 
   def defaults
@@ -132,12 +148,29 @@ class Game
   end
 
   def input
+    return if player.is_dead
+
     if state.level_completed
       player.dx *= 0.90
+      action! player, :dance
+      player.dy = 7 if player.on_ground
     else
       input_jump
       input_move
       input_dash
+      input_kill_player
+    end
+  end
+
+  def kill_player!
+    return if player.is_dead
+    player.is_dead = true
+    player.dead_at ||= Kernel.tick_count
+  end
+
+  def input_kill_player
+    if inputs.controller_one.key_down.start || inputs.keyboard.key_down.escape
+      kill_player!
     end
   end
 
@@ -145,6 +178,11 @@ class Game
     if inputs.keyboard.key_down.space || inputs.controller_one.key_down.a
       state.previous_player_state = player.copy
       entity_jump player
+    end
+
+    if player.jump_at == Kernel.tick_count
+      jump_index = player.jumps_performed.clamp(0, 6)
+      audio[:jump] = { input: "sounds/jump-#{jump_index}.ogg" }
     end
   end
 
@@ -190,16 +228,22 @@ class Game
       action! player, :dash
       player.start_dash_x = player.x
       player.end_dash_x = player.x + state.tile_size * player.dashes_left * player.facing_x
+
+      if player.dashes_left == 0
+        player.is_dashing = false
+        player.dashing_at = nil
+      end
+
       player.dashes_left -= 1
       player.dashes_left = player.dashes_left.clamp(0, 6)
       player.dashes_performed += 1
       player.dashes_performed = player.dashes_performed.clamp(0, 6)
-      audio[:dash] = { input: "sounds/dash-#{player.dashes_performed}.ogg" }
+      dash_index = player.dashes_performed.clamp(0, 6)
+      audio[:dash] = { input: "sounds/dash-#{dash_index}.ogg" }
     end
   end
 
   def calc
-    outputs.watch "player: #{player.action}"
     state.sim_dt = state.sim_dt.lerp(state.target_sim_dt, 0.1)
     calc_physics player
     calc_goals
@@ -210,21 +254,6 @@ class Game
     calc_particles
     calc_level_complete
     # state.target_sim_dt = 1.0 if player.on_ground
-  end
-
-  def calc_level_complete
-    return if !state.level_completed
-
-    if state.level_completed_at.elapsed_time == 60
-      load_level state.current_level + 1
-      state.player = new_player
-      state.camera.scale = 0.25
-      state.camera.target_scale = 0.75
-      state.camera.target_scale_changed_at = Kernel.tick_count + 30
-    elsif state.level_completed_at.elapsed_time > 90
-      state.level_completed = false
-      state.level_completed_at = nil
-    end
   end
 
   def calc_particles
@@ -242,8 +271,6 @@ class Game
   end
 
   def calc_goals
-    outputs.watch "state.level_completed: #{state.level_completed}"
-    outputs.watch "state.level_completed_at: #{state.level_completed_at}"
     goal = Geometry.find_intersect_rect player, state.goals
     if goal && !state.player.collected_goals.include?(goal)
       state.player.collected_goals << goal
@@ -256,9 +283,10 @@ class Game
   end
 
   def calc_spikes
+    return if state.level_completed
     spike = Geometry.find_intersect_rect player, state.spikes
     if spike
-      state.player.is_dead = true
+      kill_player!
     end
   end
 
@@ -280,6 +308,20 @@ class Game
       GTK.notify "Saved level-#{state.current_level}"
     end
 
+    if inputs.keyboard.ctrl_n
+      load_level state.current_level + 1
+      state.player = new_player
+      state.level_completed = false
+      state.camera.scale = 0.75
+      state.camera.target_scale = 0.75
+    elsif inputs.keyboard.ctrl_p
+      load_level state.current_level - 1
+      state.player = new_player
+      state.level_completed = false
+      state.camera.scale = 0.75
+      state.camera.target_scale = 0.75
+    end
+
     state.level_editor_tile_type ||= :ground
     if inputs.keyboard.key_down.tab
       case state.level_editor_tile_type
@@ -294,6 +336,7 @@ class Game
         GTK.notify "Tile type set to :ground"
       end
     end
+
 
     world_mouse = Camera.to_world_space state.camera, inputs.mouse
     ifloor_x = world_mouse.x.ifloor(64)
@@ -367,7 +410,8 @@ class Game
     state.camera.x += (state.camera.target_x - state.camera.x) * 0.9
     state.camera.y += (state.camera.target_y - state.camera.y) * 0.9
 
-    if player.y + 64 < state.lowest_tile_y && state.camera.target_scale > 0.25
+    # zoom out camera if they are past the lowest platform (preparing to death)
+    if player.y + 64 < state.lowest_tile_y && state.camera.target_scale > 0.25 && !player.is_dead
       state.camera.target_scale = 0.25
       state.camera.target_scale_changed_at = Kernel.tick_count
     end
@@ -461,11 +505,17 @@ class Game
       target.on_ground_at = nil
       target.started_falling_at ||= Kernel.tick_count
     end
+
     if target.is_dashing
       target.dy = 0
     else
       target.dy = target.dy + state.gravity * state.sim_dt
     end
+
+    if player.y < -3000
+      kill_player!
+    end
+
     # drop_fast = target.dy < 0
     # if drop_fast
     #   target.dy = target.dy + state.gravity * state.sim_dt
@@ -475,11 +525,38 @@ class Game
   end
 
   def calc_game_over
-    if player.y < -3000 || inputs.controller_one.key_down.start || player.is_dead
-      state.player = new_player
-      state.camera.scale = 0.25
+    return if state.level_completed
+    return if !player.is_dead
+
+    # pause at player's death location
+    if player.dead_at.elapsed_time < 15
+      player.dx = 0
+      player.dy = 0
+    end
+
+    # launch them up and zoom out camera
+    if player.dead_at.elapsed_time == 15
+      player.dy = 40
+      state.camera.target_scale = 0.25
+      state.camera.target_scale_changed_at = Kernel.tick_count
+    end
+
+
+    # zoom in camera
+    if player.dead_at.elapsed_time == 60
       state.camera.target_scale = 0.75
-      state.camera.target_scale_changed_at = Kernel.tick_count + 30
+      state.camera.target_scale_changed_at = Kernel.tick_count
+    end
+
+    # zoom camera back in
+    if player.dead_at.elapsed_time == 90
+      state.camera.target_scale = 0.75
+      state.camera.target_scale_changed_at = Kernel.tick_count
+    end
+
+    # reset player
+    if player.dead_at.elapsed_time > 90
+      state.player = new_player
     end
   end
 
@@ -492,9 +569,9 @@ class Game
   def render
     outputs.background_color = [0, 0, 0]
     render_parallax_background
+    render_tiles
     render_particles
     render_player
-    render_tiles
     render_level_editor
     render_audio
     outputs[:scene].w = 1500
@@ -517,6 +594,21 @@ class Game
       else
         outputs.labels << { x: 640, y: 32, text: "[WASD/Arrows]: Move, [SPACE]: Jump", anchor_x: 0.5, anchor_y: 0.5 }
       end
+    end
+  end
+
+  def calc_level_complete
+    return if !state.level_completed
+
+    if state.level_completed_at.elapsed_time == 60
+      load_level state.current_level + 1
+      state.player = new_player
+      state.camera.scale = 0.25
+      state.camera.target_scale = 0.75
+      state.camera.target_scale_changed_at = Kernel.tick_count + 30
+    elsif state.level_completed_at.elapsed_time > 90
+      state.level_completed = false
+      state.level_completed_at = nil
     end
   end
 
@@ -613,21 +705,33 @@ class Game
   end
 
   def player_prefab target
-    animation = target.animations[target.action]
+    if target.is_dead
+      animation = target.animations[:dead]
+      animation_at = target.dead_at
+      action_dir = :dead
+    else
+      animation = target.animations[target.action]
+      animation_at = target.action_at
+      action_dir = target.action
+    end
 
     raise "No animation found in target.animations: #{pretty_format target.animations} hash for #{target.action}" if !animation
 
-    sprite_index = Numeric.frame_index(start_at: target.action_at,
+    sprite_index = Numeric.frame_index(start_at: animation_at,
                                        frame_count: animation.frame_count,
                                        hold_for: animation.hold_for.fdiv(state.sim_dt).to_i,
                                        repeat: animation.repeat)
+
     #  player sprite is 128x128 and centered, hence the -32
     render_rect = target.merge(w: 128, h: 128)
     render_rect.x -= 32
     render_rect.y -= 32
+    if target.is_dead && target.dead_at.elapsed_time > 15
+      render_rect.angle = 180 * (target.dead_at.elapsed_time - 15).fdiv(15).clamp(0, 1)
+    end
     target_prefab = Camera.to_screen_space state.camera,
-                                           render_rect.merge(path: "sprites/player/#{target.action}/#{sprite_index + 1}.png",
-                                                        flip_horizontally: target.facing_x < 0)
+                                           render_rect.merge(path: "sprites/player/#{action_dir}/#{sprite_index + 1}.png",
+                                                             flip_horizontally: target.facing_x < 0)
 
   end
 
@@ -683,11 +787,6 @@ class Game
     target.on_ground = false
     action! target, :jump
 
-    # only play sound if it's the player (not preview/level editor players
-    if target == player
-      jump_index = target.jumps_performed.clamp(0, 6)
-      audio[:jump] = { input: "sounds/jump-#{jump_index}.ogg" }
-    end
   end
 
   def render_parallax_background
