@@ -19,9 +19,9 @@ class Game
     input
     calc
     render
-    outputs.watch "#{GTK.current_framerate} FPS"
-    outputs.watch "player: #{player.action}"
-    outputs.watch "sim_dt: #{current_level_name}"
+    # outputs.watch "#{GTK.current_framerate} FPS"
+    # outputs.watch "player: #{player.action}"
+    # outputs.watch "sim_dt: #{current_level_name}"
   end
 
   def new_player
@@ -52,36 +52,12 @@ class Game
       action: :idle,
       action_at: 0,
       animations: {
-        idle: {
-          frame_count: 16,
-          hold_for: 4,
-          repeat: true
-        },
-        jump: {
-          frame_count: 2,
-          hold_for: 4,
-          repeat: true
-        },
-        dash: {
-          frame_count: 16,
-          hold_for: 1,
-          repeat: true
-        },
-        walk: {
-          frame_count: 16,
-          hold_for: 2,
-          repeat: true
-        },
-        dance: {
-          frame_count: 16,
-          hold_for: 1,
-          repeat: true
-        },
-        dead: {
-          frame_count: 16,
-          hold_for: 1,
-          repeat: true
-        },
+        idle: { frame_count: 16, hold_for: 4, repeat: true },
+        jump: { frame_count: 2, hold_for: 4, repeat: true },
+        dash: { frame_count: 16, hold_for: 1, repeat: true },
+        walk: { frame_count: 16, hold_for: 2, repeat: true },
+        dance: { frame_count: 16, hold_for: 1, repeat: true },
+        dead: { frame_count: 16, hold_for: 1, repeat: true },
       },
     }
   end
@@ -91,7 +67,7 @@ class Game
   end
 
   def defaults
-    state.gravity              ||= -1
+    state.gravity ||= -1
     state.levels ||= [
       :tutorial_jump,
       :jump_in_the_right_order,
@@ -121,7 +97,7 @@ class Game
       [0, 0.66, 1.0, 1.0]
     ]
 
-    state.tile_size            ||= 64
+    state.tile_size ||= 64
 
     if !state.tiles
       load_level 0
@@ -325,8 +301,8 @@ class Game
     end
 
     state.whisps.each do |w|
-      w.target_x = w.target_x - (w.dx + state.player.dx)
-      w.target_y = w.target_y - (w.dy + state.player.dy)
+      w.target_x = w.target_x - (w.dx + player.dx)
+      w.target_y = w.target_y - (w.dy + player.dy)
       perc = 0.1
       w.x = w.x * (1 - perc) + w.target_x * perc
       w.y = w.y * (1 - perc) + w.target_y * perc
@@ -370,8 +346,8 @@ class Game
 
   def calc_goals
     goal = Geometry.find_intersect_rect player, state.goals
-    if goal && !state.player.collected_goals.include?(goal)
-      state.player.collected_goals << goal
+    if goal && !player.collected_goals.include?(goal)
+      player.collected_goals << goal
     end
 
     # level completion checked if:
@@ -420,14 +396,14 @@ class Game
       load_level state.current_level_index + 1
       state.player = new_player
       state.level_completed = false
-      state.camera.scale = 0.75
-      state.camera.target_scale = 0.75
+      camera.scale = 0.75
+      camera.target_scale = 0.75
     elsif inputs.keyboard.ctrl_p
       load_level state.current_level_index - 1
       state.player = new_player
       state.level_completed = false
-      state.camera.scale = 0.75
-      state.camera.target_scale = 0.75
+      camera.scale = 0.75
+      camera.target_scale = 0.75
     end
 
     state.level_editor_tile_type ||= :ground
@@ -446,7 +422,7 @@ class Game
     end
 
 
-    world_mouse = Camera.to_world_space state.camera, inputs.mouse
+    world_mouse = Camera.to_world_space camera, inputs.mouse
     ifloor_x = world_mouse.x.ifloor(64)
     ifloor_y = world_mouse.y.ifloor(64)
 
@@ -484,29 +460,29 @@ class Game
     end
 
     if inputs.keyboard.key_down.equal_sign || inputs.keyboard.key_down.plus
-      state.camera.target_scale /= 0.75
-      if state.camera.target_scale_changed_at && state.camera.target_scale_changed_at.elapsed_time >= state.camera.scale_lerp_duration
-        state.camera.target_scale_changed_at = Kernel.tick_count
+      camera.target_scale /= 0.75
+      if camera.target_scale_changed_at && camera.target_scale_changed_at.elapsed_time >= camera.scale_lerp_duration
+        camera.target_scale_changed_at = Kernel.tick_count
       end
     elsif inputs.keyboard.key_down.minus
-      state.camera.target_scale *= 0.75
-      if state.camera.target_scale_changed_at && state.camera.target_scale_changed_at.elapsed_time >= state.camera.scale_lerp_duration
-        state.camera.target_scale_changed_at = Kernel.tick_count
+      camera.target_scale *= 0.75
+      if camera.target_scale_changed_at && camera.target_scale_changed_at.elapsed_time >= camera.scale_lerp_duration
+        camera.target_scale_changed_at = Kernel.tick_count
       end
-      if state.camera.target_scale < 0.10
-        state.camera.target_scale = 0.10
+      if camera.target_scale < 0.10
+        camera.target_scale = 0.10
       end
     elsif inputs.keyboard.zero
-      state.camera.target_scale = 1
-      state.camera.target_scale_changed_at = Kernel.tick_count
+      camera.target_scale = 1
+      camera.target_scale_changed_at = Kernel.tick_count
     end
   end
 
   def calc_camera
-    return if !state.camera.target_scale_changed_at
+    return if !camera.target_scale_changed_at
 
-    perc = Easing.smooth_start(start_at: state.camera.target_scale_changed_at,
-                               duration: state.camera.scale_lerp_duration,
+    perc = Easing.smooth_start(start_at: camera.target_scale_changed_at,
+                               duration: camera.scale_lerp_duration,
                                tick_count: Kernel.tick_count,
                                power: 3)
 
@@ -516,9 +492,9 @@ class Game
                              0.1
                            end
 
-    state.camera.scale = state.camera.scale.lerp(state.camera.target_scale, perc)
-    state.camera.target_x = state.camera.target_x.lerp(player.x, 0.1)
-    state.camera.target_y = state.camera.target_y.lerp(player.y, 0.1)
+    camera.scale = camera.scale.lerp(camera.target_scale, perc)
+    camera.target_x = camera.target_x.lerp(player.x, 0.1)
+    camera.target_y = camera.target_y.lerp(player.y, 0.1)
 
     player_tracking_speed = if player.dy.abs > 55
                               0.99
@@ -526,13 +502,13 @@ class Game
                               0.9
                             end
 
-    state.camera.x += (state.camera.target_x - state.camera.x) * player_tracking_speed
-    state.camera.y += (state.camera.target_y - state.camera.y) * player_tracking_speed
+    camera.x += (camera.target_x - camera.x) * player_tracking_speed
+    camera.y += (camera.target_y - camera.y) * player_tracking_speed
 
     # zoom out camera if they are past the lowest platform (preparing to death)
-    if player.y + 64 < state.lowest_tile_y && state.camera.target_scale > 0.25 && !player.is_dead
-      state.camera.target_scale = 0.25
-      state.camera.target_scale_changed_at = Kernel.tick_count
+    if player.y + 64 < state.lowest_tile_y && camera.target_scale > 0.25 && !player.is_dead
+      camera.target_scale = 0.25
+      camera.target_scale_changed_at = Kernel.tick_count
     end
   end
 
@@ -544,15 +520,15 @@ class Game
     end
 
     if Kernel.tick_count.zmod? 60
-      entity = state.player.merge(dx: 0, created_at: Kernel.tick_count)
+      entity = player.merge(dx: 0, created_at: Kernel.tick_count)
       entity_jump entity
       state.preview << entity
 
-      entity = state.player.merge(dx: player.max_speed, created_at: Kernel.tick_count)
+      entity = player.merge(dx: player.max_speed, created_at: Kernel.tick_count)
       entity_jump entity
       state.preview << entity
 
-      entity = state.player.merge(dx: -player.max_speed, created_at: Kernel.tick_count)
+      entity = player.merge(dx: -player.max_speed, created_at: Kernel.tick_count)
       entity_jump entity
       state.preview << entity
     end
@@ -656,21 +632,21 @@ class Game
     # launch them up and zoom out camera
     if player.dead_at.elapsed_time == 15
       player.dy = 40
-      state.camera.target_scale = 0.25
-      state.camera.target_scale_changed_at = Kernel.tick_count
+      camera.target_scale = 0.25
+      camera.target_scale_changed_at = Kernel.tick_count
     end
 
 
     # zoom in camera
     if player.dead_at.elapsed_time == 60
-      state.camera.target_scale = 0.75
-      state.camera.target_scale_changed_at = Kernel.tick_count
+      camera.target_scale = 0.75
+      camera.target_scale_changed_at = Kernel.tick_count
     end
 
     # zoom camera back in
     if player.dead_at.elapsed_time == 90
-      state.camera.target_scale = 0.75
-      state.camera.target_scale_changed_at = Kernel.tick_count
+      camera.target_scale = 0.75
+      camera.target_scale_changed_at = Kernel.tick_count
     end
 
     # reset player
@@ -711,33 +687,28 @@ class Game
     render_audio
   end
 
+  def mask_prefab rect
+    Camera.to_screen_space(camera,
+                           rect.merge(x: rect.x + 32,
+                                      y: rect.y + 32,
+                                      w: 512,
+                                      h: 512,
+                                      anchor_x: 0.5,
+                                      anchor_y: 0.5,
+                                      path: "sprites/mask.png"))
+  end
+
   def render_lights
     outputs[:lights].background_color = [0, 0, 0, 0]
     outputs[:lights].w = 1500
     outputs[:lights].h = 1500
     outputs[:lights].primitives << { x: 750, y: 750, w: 1500, h: 1500, path: "sprites/mask.png", anchor_x: 0.5, anchor_y: 0.5 }
     outputs[:lights].primitives << state.spikes.map do |t|
-                                     Camera.to_screen_space(state.camera,
-                                                            t.merge(x: t.x + 32,
-                                                                    y: t.y + 32,
-                                                                    w: 512,
-                                                                    h: 512,
-                                                                    anchor_x: 0.5,
-                                                                    anchor_y: 0.5,
-                                                                    path: "sprites/mask.png"))
-
+                                     mask_prefab(t)
                                    end
 
     outputs[:lights].primitives << state.goals.map do |t|
-                                     Camera.to_screen_space(state.camera,
-                                                            t.merge(x: t.x + 32,
-                                                                    y: t.y + 32,
-                                                                    w: 512,
-                                                                    h: 512,
-                                                                    anchor_x: 0.5,
-                                                                    anchor_y: 0.5,
-                                                                    path: "sprites/mask.png"))
-
+                                     mask_prefab(t)
                                    end
 
     outputs[:lights].primitives << state.whisps.map do |w|
@@ -755,8 +726,6 @@ class Game
       state.instructions_fade_in_debounce = 60
     end
 
-    outputs.watch "#{state.instructions_fade_in_debounce}"
-
     if state.instructions_fade_in_debounce <= 0
       state.instructions_alpha = state.instructions_alpha.lerp(255, 0.1)
     else
@@ -766,7 +735,7 @@ class Game
 
     if inputs.last_active == :controller
       if dash_unlocked?
-          outputs[:scene].primitives << Camera.to_screen_space(state.camera,
+          outputs[:scene].primitives << Camera.to_screen_space(camera,
                                                                { x: player.x + 32,
                                                                  y: player.y + 72,
                                                                  w: 166,
@@ -775,7 +744,7 @@ class Game
                                                                  path: "sprites/instructions-controller-dash.png",
                                                                  a: state.instructions_alpha })
       else
-          outputs[:scene].primitives << Camera.to_screen_space(state.camera,
+          outputs[:scene].primitives << Camera.to_screen_space(camera,
                                                                { x: player.x + 32,
                                                                  y: player.y + 72,
                                                                  w: 166,
@@ -786,7 +755,7 @@ class Game
       end
     else
       if dash_unlocked?
-          outputs[:scene].primitives << Camera.to_screen_space(state.camera,
+          outputs[:scene].primitives << Camera.to_screen_space(camera,
                                                                { x: player.x + 32,
                                                                  y: player.y + 72,
                                                                  w: 166,
@@ -795,7 +764,7 @@ class Game
                                                                  path: "sprites/instructions-keyboard-dash.png",
                                                                  a: state.instructions_alpha })
       else
-          outputs[:scene].primitives << Camera.to_screen_space(state.camera,
+          outputs[:scene].primitives << Camera.to_screen_space(camera,
                                                                { x: player.x + 32,
                                                                  y: player.y + 72,
                                                                  w: 166,
@@ -813,9 +782,9 @@ class Game
     if state.level_completed_at.elapsed_time == 60
       load_level state.current_level_index + 1
       state.player = new_player
-      state.camera.scale = 0.25
-      state.camera.target_scale = 0.75
-      state.camera.target_scale_changed_at = Kernel.tick_count + 30
+      camera.scale = 0.25
+      camera.target_scale = 0.75
+      camera.target_scale_changed_at = Kernel.tick_count + 30
     elsif state.level_completed_at.elapsed_time > 90
       state.level_completed = false
       state.level_completed_at = nil
@@ -864,7 +833,7 @@ class Game
 
   def render_particles
     outputs[:scene].primitives << state.particles.map do |particle|
-      Camera.to_screen_space state.camera, particle
+      Camera.to_screen_space camera, particle
     end
   end
 
@@ -889,10 +858,6 @@ class Game
 
     audio[:bg].gain += 0.01
     audio[:bg].gain = audio[:bg].gain.clamp(0, 1)
-
-    if player.action == :jump && player.action_at == Kernel.tick_count
-    elsif player.action == :dash && player.action_at == Kernel.tick_count
-    end
   end
 
   def render_level_editor
@@ -907,7 +872,7 @@ class Game
                                   state.level_editor_mouse_rect.merge(path: "sprites/square/red.png", a: 128)
                                 end
 
-    outputs[:scene].primitives << Camera.to_screen_space(state.camera, level_editor_mouse_prefab)
+    outputs[:scene].primitives << Camera.to_screen_space(camera, level_editor_mouse_prefab)
 
     outputs[:scene].primitives << state.preview.map do |t|
       player_prefab(t).merge(a: 128)
@@ -939,9 +904,9 @@ class Game
     if target.is_dead && target.dead_at.elapsed_time > 15
       render_rect.angle = 180 * (target.dead_at.elapsed_time - 15).fdiv(15).clamp(0, 1)
     end
-    target_prefab = Camera.to_screen_space state.camera,
-                                           render_rect.merge(path: "sprites/player/#{action_dir}/#{sprite_index + 1}.png",
-                                                             flip_horizontally: target.facing_x < 0)
+    Camera.to_screen_space camera,
+                           render_rect.merge(path: "sprites/player/#{action_dir}/#{sprite_index + 1}.png",
+                                             flip_horizontally: target.facing_x < 0)
 
   end
 
@@ -951,7 +916,7 @@ class Game
 
   def render_tiles
     outputs[:scene].primitives << state.tiles.map do |t|
-      Camera.to_screen_space(state.camera,
+      Camera.to_screen_space(camera,
                              t.merge(w: 128,
                                      h: 128,
                                      anchor_y: 0.25,
@@ -960,7 +925,7 @@ class Game
     end
 
     remaining_goals = state.goals.reject do |g|
-                       Geometry.find_intersect_rect g, state.player.collected_goals
+                        Geometry.find_intersect_rect g, player.collected_goals
                       end
 
     outputs[:scene].primitives << remaining_goals.map do |t|
@@ -972,7 +937,7 @@ class Game
                                         hold_for: hold_for,
                                         repeat: true)
 
-      Camera.to_screen_space(state.camera,
+      Camera.to_screen_space(camera,
                              t.merge(w: 128,
                                      h: 128,
                                      anchor_y: 0.25,
@@ -989,7 +954,7 @@ class Game
                                         hold_for: hold_for,
                                         repeat: true)
 
-      Camera.to_screen_space(state.camera,
+      Camera.to_screen_space(camera,
                              t.merge(w: 128,
                                      h: 128,
                                      anchor_y: 0.25,
@@ -1002,8 +967,13 @@ class Game
     state.player ||= new_player
   end
 
+  def camera
+    state.camera
+  end
+
   def entity_jump target
-    can_jump = target.on_ground || (target.started_falling_at && target.started_falling_at.elapsed_time < (5 / state.sim_dt))
+    can_jump = target.on_ground ||
+               (target.started_falling_at && target.started_falling_at.elapsed_time < (5 / state.sim_dt)) # coyote time
 
     return if !can_jump
 
@@ -1027,12 +997,11 @@ class Game
     target.jump_at = Kernel.tick_count
     target.on_ground = false
     action! target, :jump
-
   end
 
   def render_parallax_background
-    bg_x_parallax = -state.camera.target_x / 10
-    bg_y_parallax = -state.camera.target_y / 10
+    bg_x_parallax = -camera.target_x / 10
+    bg_y_parallax = -camera.target_y / 10
     sz = 1500
 
     outputs[:scene].primitives << {
