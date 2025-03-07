@@ -3,6 +3,10 @@ require 'app/camera.rb'
 class Game
   attr_gtk
 
+  def current_level_name
+    state.levels[state.current_level_index] || :todo
+  end
+
   def tick
     defaults
     input
@@ -10,7 +14,7 @@ class Game
     render
     outputs.watch "#{GTK.current_framerate} FPS"
     outputs.watch "player: #{player.action}"
-    outputs.watch "sim_dt: #{state.sim_dt}"
+    outputs.watch "sim_dt: #{current_level_name}"
   end
 
   def new_player
@@ -81,6 +85,17 @@ class Game
 
   def defaults
     state.gravity              ||= -1
+    state.levels ||= [
+      :tutorial_jump,
+      :jump_in_the_right_order,
+      :burn_a_jump,
+      :tutorial_dash,
+      :burn_a_dash,
+      :jump_and_dash,
+      :burn_jumps_and_dashes,
+    ]
+
+    state.current_level_index ||= 0
 
     state.particles ||= []
 
@@ -119,10 +134,10 @@ class Game
   end
 
   def load_level number
-    state.current_level = number
-    state.tiles =  load_rects "data/level-#{state.current_level}.txt"
-    state.goals =  load_rects "data/level-#{state.current_level}-goals.txt"
-    state.spikes = load_rects "data/level-#{state.current_level}-spikes.txt"
+    state.current_level_index = number
+    state.tiles =  load_rects "data/#{current_level_name}.txt"
+    state.goals =  load_rects "data/#{current_level_name}-goals.txt"
+    state.spikes = load_rects "data/#{current_level_name}-spikes.txt"
     state.lowest_tile_y = (state.tiles.map { |t| t.ordinal_y }.min || 0) * state.tile_size
     state.level_loaded_at = Kernel.tick_count
     state.instructions_alpha = 0
@@ -217,7 +232,7 @@ class Game
   end
 
   def dash_unlocked?
-    state.current_level >= 3
+    state.current_level_index >= 3
   end
 
   def input_dash
@@ -258,6 +273,12 @@ class Game
     # state.target_sim_dt = 1.0 if player.on_ground
   end
 
+  def save_level_as name
+    save_rects "data/#{name}.txt", state.tiles
+    save_rects "data/#{name}-goals.txt", state.goals
+    save_rects "data/#{name}-spikes.txt", state.spikes
+  end
+
   def calc_particles
     state.particles.each do |particle|
       particle.start_at ||= Kernel.tick_count
@@ -278,7 +299,17 @@ class Game
       state.player.collected_goals << goal
     end
 
-    if player.collected_goals.length == state.goals.length && !state.level_completed
+    # level completion checked if:
+    # - player is not dead
+    # - player is on the ground
+    # - player has collected all goals
+    # - level is not already completed
+    level_completed = !player.is_dead &&
+                      player.on_ground &&
+                      player.collected_goals.length == state.goals.length &&
+                      !state.level_completed
+
+    if level_completed
       state.level_completed = true
       state.level_completed_at = Kernel.tick_count
     end
@@ -304,20 +335,20 @@ class Game
     calc_preview
 
     if inputs.keyboard.ctrl_s
-      save_rects "data/level-#{state.current_level}.txt", state.tiles
-      save_rects "data/level-#{state.current_level}-goals.txt", state.goals
-      save_rects "data/level-#{state.current_level}-spikes.txt", state.spikes
-      GTK.notify "Saved level-#{state.current_level}"
+      save_rects "data/#{current_level_name}.txt", state.tiles
+      save_rects "data/#{current_level_name}-goals.txt", state.goals
+      save_rects "data/#{current_level_name}-spikes.txt", state.spikes
+      GTK.notify "Saved #{current_level_name}"
     end
 
     if inputs.keyboard.ctrl_n
-      load_level state.current_level + 1
+      load_level state.current_level_index + 1
       state.player = new_player
       state.level_completed = false
       state.camera.scale = 0.75
       state.camera.target_scale = 0.75
     elsif inputs.keyboard.ctrl_p
-      load_level state.current_level - 1
+      load_level state.current_level_index - 1
       state.player = new_player
       state.level_completed = false
       state.camera.scale = 0.75
@@ -367,10 +398,10 @@ class Game
         target_rects << { ordinal_x: rect.x.idiv(64), ordinal_y: rect.y.idiv(64) }
       end
 
-      save_rects "data/level-#{state.current_level}.txt", state.tiles
-      save_rects "data/level-#{state.current_level}-goals.txt", state.goals
-      save_rects "data/level-#{state.current_level}-spikes.txt", state.spikes
-      load_level state.current_level
+      save_rects "data/#{current_level_name}.txt", state.tiles
+      save_rects "data/#{current_level_name}-goals.txt", state.goals
+      save_rects "data/#{current_level_name}-spikes.txt", state.spikes
+      load_level state.current_level_index
     end
 
     if inputs.controller_one.key_down.select || inputs.keyboard.key_down.u
@@ -570,6 +601,7 @@ class Game
 
   def render
     outputs.background_color = [0, 0, 0]
+    render_background
     render_parallax_background
     render_tiles
     render_particles
@@ -649,7 +681,7 @@ class Game
     return if !state.level_completed
 
     if state.level_completed_at.elapsed_time == 60
-      load_level state.current_level + 1
+      load_level state.current_level_index + 1
       state.player = new_player
       state.camera.scale = 0.25
       state.camera.target_scale = 0.75
@@ -837,7 +869,23 @@ class Game
 
   end
 
+  def render_background
+    return
+    bg_x_parallax = -state.camera.target_x / 5
+    bg_y_parallax = -state.camera.target_y / 5
+    outputs[:scene].primitives << {
+      x: 750,
+      y: 750,
+      w: 2862 / 2,
+      h: 1627 / 2,
+      anchor_x: 0.5,
+      anchor_y: 0.5,
+      path: "sprites/bg.png"
+    }
+  end
+
   def render_parallax_background
+    # return
     bg_x_parallax = -state.camera.target_x / 5
     bg_y_parallax = -state.camera.target_y / 5
     sz = 1500
