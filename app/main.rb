@@ -125,6 +125,8 @@ class Game
     state.spikes = load_rects "data/level-#{state.current_level}-spikes.txt"
     state.lowest_tile_y = (state.tiles.map { |t| t.ordinal_y }.min || 0) * state.tile_size
     state.level_loaded_at = Kernel.tick_count
+    state.instructions_alpha = 0
+    state.instructions_fade_in_debounce = 60
   end
 
   def load_rects file_path
@@ -175,7 +177,7 @@ class Game
   end
 
   def input_jump
-    if inputs.keyboard.key_down.space || inputs.controller_one.key_down.a
+    if inputs.keyboard.key_down.space || inputs.controller_one.key_down.a || inputs.keyboard.key_down.up
       state.previous_player_state = player.copy
       entity_jump player
     end
@@ -582,17 +584,63 @@ class Game
   end
 
   def render_instructions
+    state.instructions_alpha ||= 0
+    state.instructions_fade_in_debounce ||= 120
+
+    if player.action == :idle
+      state.instructions_fade_in_debounce -= 1
+    else
+      state.instructions_fade_in_debounce = 120
+    end
+
+    outputs.watch "#{state.instructions_fade_in_debounce}"
+
+    if state.instructions_fade_in_debounce <= 0
+      state.instructions_alpha = state.instructions_alpha.lerp(255, 0.1)
+    else
+      state.instructions_alpha = state.instructions_alpha.lerp(0, 0.1)
+    end
+
+
     if inputs.last_active == :controller
       if dash_unlocked?
-        outputs.labels << { x: 640, y: 32, text: "[D-PAD]: Move, [A/X]: Jump, [R1]: Dash", anchor_x: 0.5, anchor_y: 0.5 }
+          outputs[:scene].primitives << Camera.to_screen_space(state.camera,
+                                                               { x: player.x + 32,
+                                                                 y: player.y + 72,
+                                                                 w: 166,
+                                                                 h: 64,
+                                                                 anchor_x: 0.5,
+                                                                 path: "sprites/instructions-controller-dash.png",
+                                                                 a: state.instructions_alpha })
       else
-        outputs.labels << { x: 640, y: 32, text: "[D-PAD]: Move, [A/X]: Jump", anchor_x: 0.5, anchor_y: 0.5 }
+          outputs[:scene].primitives << Camera.to_screen_space(state.camera,
+                                                               { x: player.x + 32,
+                                                                 y: player.y + 72,
+                                                                 w: 166,
+                                                                 h: 64,
+                                                                 anchor_x: 0.5,
+                                                                 path: "sprites/instructions-controller-no-dash.png",
+                                                                 a: state.instructions_alpha })
       end
     else
       if dash_unlocked?
-        outputs.labels << { x: 640, y: 32, text: "[WASD/Arrows]: Move, [SPACE]: Jump, [F/L]: Dash", anchor_x: 0.5, anchor_y: 0.5 }
+          outputs[:scene].primitives << Camera.to_screen_space(state.camera,
+                                                               { x: player.x + 32,
+                                                                 y: player.y + 72,
+                                                                 w: 166,
+                                                                 h: 64,
+                                                                 anchor_x: 0.5,
+                                                                 path: "sprites/instructions-keyboard-dash.png",
+                                                                 a: state.instructions_alpha })
       else
-        outputs.labels << { x: 640, y: 32, text: "[WASD/Arrows]: Move, [SPACE]: Jump", anchor_x: 0.5, anchor_y: 0.5 }
+          outputs[:scene].primitives << Camera.to_screen_space(state.camera,
+                                                               { x: player.x + 32,
+                                                                 y: player.y + 72,
+                                                                 w: 166,
+                                                                 h: 64,
+                                                                 anchor_x: 0.5,
+                                                                 path: "sprites/instructions-keyboard-no-dash.png",
+                                                                 a: state.instructions_alpha })
       end
     end
   end
