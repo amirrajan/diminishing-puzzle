@@ -728,6 +728,18 @@ class Game
 
                                    end
 
+    outputs[:lights].primitives << state.goals.map do |t|
+                                     Camera.to_screen_space(state.camera,
+                                                            t.merge(x: t.x + 32,
+                                                                    y: t.y + 32,
+                                                                    w: 512,
+                                                                    h: 512,
+                                                                    anchor_x: 0.5,
+                                                                    anchor_y: 0.5,
+                                                                    path: "sprites/mask.png"))
+
+                                   end
+
     outputs[:lights].primitives << state.whisps.map do |w|
       w.merge(x: w.x, y: w.y, w: 640, h: 640, r: 0, g: 0, b: 0, path: "sprites/mask.png")
     end
@@ -952,7 +964,20 @@ class Game
                       end
 
     outputs[:scene].primitives << remaining_goals.map do |t|
-      Camera.to_screen_space(state.camera, t.merge(path: 'sprites/square/yellow.png'))
+      start_at    = t.id % 5 * -13
+      frame_count = 16
+      hold_for    = 4
+      frame_index = Numeric.frame_index(start_at: start_at,
+                                        frame_count: frame_count,
+                                        hold_for: hold_for,
+                                        repeat: true)
+
+      Camera.to_screen_space(state.camera,
+                             t.merge(w: 128,
+                                     h: 128,
+                                     anchor_y: 0.25,
+                                     anchor_x: 0.25,
+                                     path: "sprites/goal-tile/#{frame_index + 1}.png"))
     end
 
     outputs[:scene].primitives << state.spikes.map_with_index do |t, i|
