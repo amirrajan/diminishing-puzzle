@@ -587,7 +587,7 @@ class Game
     state.instructions_alpha ||= 0
     state.instructions_fade_in_debounce ||= 120
 
-    if player.action == :idle
+    if player.action == :idle && player.on_ground
       state.instructions_fade_in_debounce -= 1
     else
       state.instructions_fade_in_debounce = 120
