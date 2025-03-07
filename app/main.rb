@@ -7,6 +7,13 @@ class Game
     state.levels[state.current_level_index] || :todo
   end
 
+  def burn_id!
+    state.id ||= 1
+    r = state.id
+    state.id += 1
+    r
+  end
+
   def tick
     defaults
     input
@@ -151,7 +158,8 @@ class Game
       ordinal_x, ordinal_y = l.split(",").map(&:to_i)
       r = { ordinal_x: ordinal_x, ordinal_y: ordinal_y }
 
-      r.merge(x: r.ordinal_x * state.tile_size,
+      r.merge(id: burn_id!,
+              x: r.ordinal_x * state.tile_size,
               y: r.ordinal_y * state.tile_size,
               w: state.tile_size,
               h: state.tile_size)
@@ -871,8 +879,21 @@ class Game
       Camera.to_screen_space(state.camera, t.merge(path: 'sprites/square/yellow.png'))
     end
 
-    outputs[:scene].primitives << state.spikes.map do |t|
-      Camera.to_screen_space state.camera, t.merge(path: 'sprites/square/red.png')
+    outputs[:scene].primitives << state.spikes.map_with_index do |t, i|
+      start_at    = t.id % 5 * -13
+      frame_count = 16
+      hold_for    = 8
+      frame_index = Numeric.frame_index(start_at: start_at,
+                                        frame_count: frame_count,
+                                        hold_for: hold_for,
+                                        repeat: true)
+
+      Camera.to_screen_space(state.camera,
+                             t.merge(w: 128,
+                                     h: 128,
+                                     anchor_y: 0.25,
+                                     anchor_x: 0.25,
+                                     path: "sprites/lava-tile/#{frame_index + 1}.png"))
     end
   end
 
