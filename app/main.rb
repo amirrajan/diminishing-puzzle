@@ -93,6 +93,7 @@ class Game
       :burn_a_dash,
       :jump_and_dash,
       :burn_jumps_and_dashes,
+      :leap_of_faith
     ]
 
     state.current_level_index ||= 0
