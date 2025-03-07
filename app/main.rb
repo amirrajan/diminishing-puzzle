@@ -602,7 +602,6 @@ class Game
 
   def render
     outputs.background_color = [0, 0, 0]
-    render_background
     render_parallax_background
     render_tiles
     render_particles
@@ -822,7 +821,12 @@ class Game
 
   def render_tiles
     outputs[:scene].primitives << state.tiles.map do |t|
-      Camera.to_screen_space(state.camera, t.merge(path: 'sprites/square/white.png'))
+      Camera.to_screen_space(state.camera,
+                             t.merge(w: 128,
+                                     h: 128,
+                                     anchor_y: 0.25,
+                                     anchor_x: 0.25,
+                                     path: 'sprites/platform-tile.png'))
     end
 
     remaining_goals = state.goals.reject do |g|
@@ -870,62 +874,16 @@ class Game
 
   end
 
-  def render_background
-    return
-    bg_x_parallax = -state.camera.target_x / 5
-    bg_y_parallax = -state.camera.target_y / 5
-    outputs[:scene].primitives << {
-      x: 750,
-      y: 750,
-      w: 2862 / 2,
-      h: 1627 / 2,
-      anchor_x: 0.5,
-      anchor_y: 0.5,
-      path: "sprites/bg.png"
-    }
-  end
-
   def render_parallax_background
-    # return
-    bg_x_parallax = -state.camera.target_x / 5
-    bg_y_parallax = -state.camera.target_y / 5
+    bg_x_parallax = -state.camera.target_x / 10
+    bg_y_parallax = -state.camera.target_y / 10
     sz = 1500
 
     outputs[:scene].primitives << {
       x: 750 - sz + (bg_x_parallax + sz).clamp_wrap(0, sz * 2),
       y: 750 - sz + (bg_y_parallax + sz).clamp_wrap(0, sz * 2),
-      w: sz + 1,
-      h: sz + 1,
-      path: "sprites/bg.png",
-      anchor_y: 0.5,
-      anchor_x: 0.5
-    }
-
-    outputs[:scene].primitives << {
-      x: 750 - sz + (bg_x_parallax + sz).clamp_wrap(0, sz * 2),
-      y: 750 - sz + (bg_y_parallax).clamp_wrap(0, sz * 2),
-      w: sz + 1,
-      h: sz + 1,
-      path: "sprites/bg.png",
-      anchor_y: 0.5,
-      anchor_x: 0.5
-    }
-
-    outputs[:scene].primitives << {
-      x: 750 - sz + (bg_x_parallax).clamp_wrap(0, sz * 2),
-      y: 750 - sz + (bg_y_parallax).clamp_wrap(0, sz * 2),
-      w: sz + 1,
-      h: sz + 1,
-      path: "sprites/bg.png",
-      anchor_y: 0.5,
-      anchor_x: 0.5
-    }
-
-    outputs[:scene].primitives << {
-      x: 750 - sz + (bg_x_parallax).clamp_wrap(0, sz * 2),
-      y: 750 - sz + (bg_y_parallax + sz).clamp_wrap(0, sz * 2),
-      w: sz + 1,
-      h: sz + 1,
+      w: 2862,
+      h: 1627,
       path: "sprites/bg.png",
       anchor_y: 0.5,
       anchor_x: 0.5
