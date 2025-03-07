@@ -192,8 +192,15 @@ class Game
     end
   end
 
+  def jump_pressed?
+    inputs.keyboard.key_down.space   ||
+    inputs.controller_one.key_down.a ||
+    inputs.keyboard.key_down.up      ||
+    inputs.keyboard.key_down.w
+  end
+
   def input_jump
-    if inputs.keyboard.key_down.space || inputs.controller_one.key_down.a || inputs.keyboard.key_down.up
+    if jump_pressed?
       state.previous_player_state = player.copy
       entity_jump player
     end
@@ -209,7 +216,7 @@ class Game
       if player.on_ground
         action! player, :walk
       end
-      player.dx -= player.max_speed
+      player.dx -= player.max_speed * 0.25
       player.facing_x = -1
       player.left_at ||= Kernel.tick_count
       player.right_at  = nil
@@ -217,7 +224,7 @@ class Game
       if player.on_ground
         action! player, :walk
       end
-      player.dx += player.max_speed
+      player.dx += player.max_speed * 0.25
       player.facing_x =  1
       player.right_at ||= Kernel.tick_count
       player.left_at    = nil
@@ -236,29 +243,45 @@ class Game
     state.current_level_index >= 3
   end
 
+  def input_dash_left?
+    inputs.controller_one.key_down.l1 || inputs.keyboard.key_down.j || inputs.keyboard.key_down.q
+  end
+
+  def input_dash_right?
+    inputs.controller_one.key_down.r1 || inputs.keyboard.key_down.l || inputs.keyboard.key_down.e
+  end
+
+  def input_dash?
+    input_dash_left? || input_dash_right?
+  end
+
   def input_dash
     return if !dash_unlocked?
     return if player.is_dashing
+    return if !input_dash?
 
-    if inputs.controller_one.key_down.r1 || inputs.keyboard.key_down.f || inputs.keyboard.key_down.l
-      player.is_dashing = true
-      player.dashing_at = Kernel.tick_count
-      action! player, :dash
-      player.start_dash_x = player.x
-      player.end_dash_x = player.x + state.tile_size * player.dashes_left * player.facing_x
-
-      if player.dashes_left == 0
-        player.is_dashing = false
-        player.dashing_at = nil
-      end
-
-      player.dashes_left -= 1
-      player.dashes_left = player.dashes_left.clamp(0, 6)
-      player.dashes_performed += 1
-      player.dashes_performed = player.dashes_performed.clamp(0, 6)
-      dash_index = player.dashes_performed.clamp(0, 6)
-      audio[:dash] = { input: "sounds/dash-#{dash_index}.ogg" }
+    if input_dash_left?
+      player.facing_x = -1
+    elsif input_dash_right?
+      player.facing_x = 1
     end
+
+    player.is_dashing = true
+    player.dashing_at = Kernel.tick_count
+    player.start_dash_x = player.x
+    player.end_dash_x = player.x + state.tile_size * player.dashes_left * player.facing_x
+
+    if player.dashes_left == 0
+      player.is_dashing = false
+      player.dashing_at = nil
+    end
+
+    player.dashes_left -= 1
+    player.dashes_left = player.dashes_left.clamp(0, 6)
+    player.dashes_performed += 1
+    player.dashes_performed = player.dashes_performed.clamp(0, 6)
+    dash_index = player.dashes_performed.clamp(0, 6)
+    audio[:dash] = { input: "sounds/dash-#{dash_index}.ogg" }
   end
 
   def calc
@@ -431,18 +454,29 @@ class Game
   def calc_camera
     return if !state.camera.target_scale_changed_at
 
-    ease = 0.01
     perc = Easing.smooth_start(start_at: state.camera.target_scale_changed_at,
                                duration: state.camera.scale_lerp_duration,
                                tick_count: Kernel.tick_count,
                                power: 3)
 
+    scale_tracking_speed = if player.dy.abs > 55
+                             0.99
+                           else
+                             0.1
+                           end
+
     state.camera.scale = state.camera.scale.lerp(state.camera.target_scale, perc)
     state.camera.target_x = state.camera.target_x.lerp(player.x, 0.1)
     state.camera.target_y = state.camera.target_y.lerp(player.y, 0.1)
 
-    state.camera.x += (state.camera.target_x - state.camera.x) * 0.9
-    state.camera.y += (state.camera.target_y - state.camera.y) * 0.9
+    player_tracking_speed = if player.dy.abs > 55
+                              0.99
+                            else
+                              0.9
+                            end
+
+    state.camera.x += (state.camera.target_x - state.camera.x) * player_tracking_speed
+    state.camera.y += (state.camera.target_y - state.camera.y) * player_tracking_speed
 
     # zoom out camera if they are past the lowest platform (preparing to death)
     if player.y + 64 < state.lowest_tile_y && state.camera.target_scale > 0.25 && !player.is_dead
@@ -546,7 +580,7 @@ class Game
       target.dy = target.dy + state.gravity * state.sim_dt
     end
 
-    if player.y < -3000
+    if player.y < -4000
       kill_player!
     end
 
@@ -617,12 +651,12 @@ class Game
 
   def render_instructions
     state.instructions_alpha ||= 0
-    state.instructions_fade_in_debounce ||= 120
+    state.instructions_fade_in_debounce ||= 60
 
     if player.action == :idle && player.on_ground
       state.instructions_fade_in_debounce -= 1
     else
-      state.instructions_fade_in_debounce = 120
+      state.instructions_fade_in_debounce = 60
     end
 
     outputs.watch "#{state.instructions_fade_in_debounce}"
