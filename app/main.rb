@@ -302,7 +302,50 @@ class Game
     calc_camera
     calc_particles
     calc_level_complete
+    calc_whisps
     # state.target_sim_dt = 1.0 if player.on_ground
+  end
+
+  def calc_whisps
+    state.whisps ||= 20.map do
+      d = rand + 1
+      w = {
+        a: 255,
+        x: 1500 * rand,
+        y: 1500 * rand,
+        w: 640, h: 640,
+        dx: d,
+        dy: d,
+        path: "sprites/mask.png",
+        r: 0, g: 255, b: 255
+      }
+      w.target_x = w.x
+      w.target_y = w.y
+      w
+    end
+
+    state.whisps.each do |w|
+      w.target_x = w.target_x - (w.dx + state.player.dx)
+      w.target_y = w.target_y - (w.dy + state.player.dy)
+      perc = 0.1
+      w.x = w.x * (1 - perc) + w.target_x * perc
+      w.y = w.y * (1 - perc) + w.target_y * perc
+      w.a += 10
+      if w.x + w.w < 0
+        w.target_x = 1500 * rand
+        w.target_y = 1500 * rand
+        w.x = w.target_x
+        w.y = w.target_y
+        w.a = 0
+      end
+      if w.y + w.h < 0
+        w.target_x = 1500 * rand
+        w.target_y = 1500 * rand
+        w.x = w.target_x
+        w.y = w.target_y
+        w.a = 0
+      end
+    end
   end
 
   def save_level_as name
@@ -644,17 +687,50 @@ class Game
 
   def render
     outputs.background_color = [0, 0, 0]
+    render_scene
+    render_lights
+    outputs[:lighted_scene].background_color = [0, 0, 0, 0]
+    outputs[:lighted_scene].w = 1500
+    outputs[:lighted_scene].h = 1500
+    outputs[:lighted_scene].primitives << { x: 0, y: 0, w: 1500, h: 1500, path: :lights, blendmode_enum: 0 }
+    outputs[:lighted_scene].primitives << { x: 0, y: 0, w: 1500, h: 1500, path: :scene, blendmode_enum: 2 }
+    outputs.primitives << { **Camera.viewport, path: :lighted_scene }
+    render_level_complete
+    render_instructions
+  end
+
+  def render_scene
+    outputs[:scene].background_color = [0, 0, 0, 0]
+    outputs[:scene].w = 1500
+    outputs[:scene].h = 1500
     render_parallax_background
     render_tiles
     render_particles
     render_player
     render_level_editor
     render_audio
-    outputs[:scene].w = 1500
-    outputs[:scene].h = 1500
-    outputs.primitives << { **Camera.viewport, path: :scene }
-    render_level_complete
-    render_instructions
+  end
+
+  def render_lights
+    outputs[:lights].background_color = [0, 0, 0, 0]
+    outputs[:lights].w = 1500
+    outputs[:lights].h = 1500
+    outputs[:lights].primitives << { x: 750, y: 750, w: 1500, h: 1500, path: "sprites/mask.png", anchor_x: 0.5, anchor_y: 0.5 }
+    outputs[:lights].primitives << state.spikes.map do |t|
+                                     Camera.to_screen_space(state.camera,
+                                                            t.merge(x: t.x + 32,
+                                                                    y: t.y + 32,
+                                                                    w: 512,
+                                                                    h: 512,
+                                                                    anchor_x: 0.5,
+                                                                    anchor_y: 0.5,
+                                                                    path: "sprites/mask.png"))
+
+                                   end
+
+    outputs[:lights].primitives << state.whisps.map do |w|
+      w.merge(x: w.x, y: w.y, w: 640, h: 640, r: 0, g: 0, b: 0, path: "sprites/mask.png")
+    end
   end
 
   def render_instructions
