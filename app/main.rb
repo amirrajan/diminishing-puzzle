@@ -72,7 +72,7 @@ class Game
   def defaults
     state.gravity ||= -1
 
-    state.max_music_volume ||= 1
+    state.max_music_volume ||= 0.4
     state.max_sfx_volume ||= 1
 
     # list of levels that correlates to the data files
