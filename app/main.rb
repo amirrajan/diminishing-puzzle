@@ -72,6 +72,9 @@ class Game
   def defaults
     state.gravity ||= -1
 
+    state.max_music_volume ||= 1
+    state.max_sfx_volume ||= 1
+
     # list of levels that correlates to the data files
     state.levels ||= [
       :tutorial_jump,
@@ -201,7 +204,7 @@ class Game
 
     if player.jump_at == Kernel.tick_count && player.jumps_performed != jumps_performed_before_decrement
       jump_index = player.jumps_performed.clamp(0, 6)
-      audio[:jump] = { input: "sounds/jump-#{jump_index}.ogg" }
+      audio[:jump] = { input: "sounds/jump-#{jump_index}.ogg", gain: state.max_sfx_volume }
     end
   end
 
@@ -287,7 +290,7 @@ class Game
     end
 
     if dashes_performed_before_decrement != player.dashes_performed
-      audio[:dash] = { input: "sounds/dash-#{player.dashes_performed}.ogg" }
+      audio[:dash] = { input: "sounds/dash-#{player.dashes_performed}.ogg", gain: state.max_sfx_volume }
     end
   end
 
@@ -304,7 +307,7 @@ class Game
     calc_level_complete
     calc_whisps
     if player.is_dead && player.dead_at == Kernel.tick_count
-      audio[:dead] = { input: "sounds/dead.ogg" }
+      audio[:dead] = { input: "sounds/dead.ogg", gain: state.max_sfx_volume}
     end
     # state.target_sim_dt = 1.0 if player.on_ground
   end
@@ -375,7 +378,7 @@ class Game
     goal = Geometry.find_intersect_rect player, state.goals
     if goal && !player.collected_goals.include?(goal)
       player.collected_goals << goal
-      audio[:goal] = { input: "sounds/goal.ogg" }
+      audio[:goal] = { input: "sounds/goal.ogg", gain: state.max_sfx_volume}
     end
 
     # level completion checked if:
@@ -391,7 +394,7 @@ class Game
     if level_completed && !state.level_completed
       state.level_completed = true
       state.level_completed_at = Kernel.tick_count
-      audio[:complete] = { input: "sounds/complete.ogg" }
+      audio[:complete] = { input: "sounds/complete.ogg", gain: state.max_sfx_volume}
     end
   end
 
@@ -907,7 +910,7 @@ class Game
     }
 
     audio[:bg].gain += 0.01
-    audio[:bg].gain = audio[:bg].gain.clamp(0, 1)
+    audio[:bg].gain = audio[:bg].gain.clamp(0, state.max_music_volume)
   end
 
   def render_level_editor
@@ -1099,39 +1102,62 @@ class GTK::Console::Menu
       (button id: :music_decrease,
               row: 2,
               col: 18,
-              text: "Music +",
+              text: "BG+ (#{$state.max_music_volume.to_sf})",
               method: :increase_music_clicked),
 
       (button id: :music_increase,
               row: 2,
               col: 16,
-              text: "Music -",
+              text: "BG- (#{$state.max_music_volume.to_sf})",
               method: :decrease_music_clicked),
+
+      (button id: :music_decrease,
+              row: 3,
+              col: 18,
+              text: "FX+ (#{$state.max_sfx_volume.to_sf})",
+              method: :increase_sfx_clicked),
+
+      (button id: :music_increase,
+              row: 3,
+              col: 16,
+              text: "FX- (#{$state.max_sfx_volume.to_sf})",
+              method: :decrease_sfx_clicked),
+
+      (button id: :random_sfx,
+              row: 3,
+              col: 14,
+              text: "RAND SFX",
+              method: :play_random_sfx),
     ]
   end
 
   # STEP 2: Define the function that should be called.
-  def custom_button_clicked
-    log "* INFO: I AM CUSTOM was clicked!"
+  def decrease_music_clicked
+    $state.max_music_volume -= 0.1
+    $state.max_music_volume = $state.max_music_volume.clamp(0, 1)
   end
 
-  def custom_button_also_clicked
-    log "* INFO: Custom Button Clicked at #{Kernel.global_tick_count}!"
+  def increase_music_clicked
+    $state.max_music_volume += 0.1
+    $state.max_music_volume = $state.max_music_volume.clamp(0, 1)
+  end
 
-    all_buttons_as_string = GTK.console.menu.buttons.map do |b|
-      <<-S.strip
-** id: #{b[:id]}
-:PROPERTIES:
-:id:     :#{b[:id]}
-:method: :#{b[:method]}
-:text:   #{b[:text]}
-:END:
-S
-    end.join("\n")
+  def decrease_sfx_clicked
+    $state.max_sfx_volume -= 0.1
+    $state.max_sfx_volume = $state.max_sfx_volume.clamp(0, 1)
+    random_audio = [:dead, :goal, :complete].sample
+    $args.audio[random_audio] = { input: "sounds/#{random_audio}.ogg", gain: $state.max_sfx_volume}
+  end
 
-    log <<-S
-* INFO: Here are all the buttons:
-#{all_buttons_as_string}
-S
+  def increase_sfx_clicked
+    $state.max_sfx_volume += 0.1
+    $state.max_sfx_volume = $state.max_sfx_volume.clamp(0, 1)
+    random_audio = [:dead, :goal, :complete].sample
+    $args.audio[random_audio] = { input: "sounds/#{random_audio}.ogg", gain: $state.max_sfx_volume}
+  end
+
+  def play_random_sfx
+    random_audio = [:dead, :goal, :complete].sample
+    $args.audio[random_audio] = { input: "sounds/#{random_audio}.ogg", gain: $state.max_sfx_volume}
   end
 end
