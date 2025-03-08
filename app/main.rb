@@ -186,10 +186,10 @@ class Game
   end
 
   def jump_pressed?
-    inputs.keyboard.space   ||
-    inputs.controller_one.a ||
-    inputs.keyboard.up      ||
-    inputs.keyboard.w
+    inputs.keyboard.key_down.space   ||
+    inputs.controller_one.key_down.a ||
+    inputs.keyboard.key_down.up      ||
+    inputs.keyboard.key_down.w
   end
 
   def input_jump
@@ -1091,3 +1091,47 @@ end
 
 # GTK.reset_and_replay "replay.txt", speed: 3
 # GTK.reset
+
+class GTK::Console::Menu
+  # STEP 1: Override the custom_buttons function.
+  def custom_buttons
+    [
+      (button id: :music_decrease,
+              row: 2,
+              col: 18,
+              text: "Music +",
+              method: :increase_music_clicked),
+
+      (button id: :music_increase,
+              row: 2,
+              col: 16,
+              text: "Music -",
+              method: :decrease_music_clicked),
+    ]
+  end
+
+  # STEP 2: Define the function that should be called.
+  def custom_button_clicked
+    log "* INFO: I AM CUSTOM was clicked!"
+  end
+
+  def custom_button_also_clicked
+    log "* INFO: Custom Button Clicked at #{Kernel.global_tick_count}!"
+
+    all_buttons_as_string = GTK.console.menu.buttons.map do |b|
+      <<-S.strip
+** id: #{b[:id]}
+:PROPERTIES:
+:id:     :#{b[:id]}
+:method: :#{b[:method]}
+:text:   #{b[:text]}
+:END:
+S
+    end.join("\n")
+
+    log <<-S
+* INFO: Here are all the buttons:
+#{all_buttons_as_string}
+S
+  end
+end
