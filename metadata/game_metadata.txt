@@ -1,8 +1,8 @@
-devid=todo
-devtitle=Todo
-gameid=todo
-gametitle=TODO
-version=1.0
+devid=AdenFlorian
+devtitle=David Valachovic
+gameid=endurance
+gametitle=Endurance The Probe
+version=0.1
 icon=metadata/icon.png
 hd=true
 highdpi=true
