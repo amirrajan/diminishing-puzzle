@@ -55,7 +55,7 @@ class Game
         jump: { frame_count: 2, hold_for: 4, repeat: true },
         dash: { frame_count: 16, hold_for: 1, repeat: true },
         walk: { frame_count: 16, hold_for: 2, repeat: true },
-        dance: { frame_count: 16, hold_for: 1, repeat: true },
+        dance: { frame_count: 16, hold_for: 4, repeat: true },
         dead: { frame_count: 16, hold_for: 1, repeat: true },
         fall: { frame_count: 2, hold_for: 4, repeat: true },
       },
