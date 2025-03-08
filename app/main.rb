@@ -58,6 +58,7 @@ class Game
         walk: { frame_count: 16, hold_for: 2, repeat: true },
         dance: { frame_count: 16, hold_for: 1, repeat: true },
         dead: { frame_count: 16, hold_for: 1, repeat: true },
+        fall: { frame_count: 2, hold_for: 4, repeat: true },
       },
     }
   end
@@ -77,7 +78,8 @@ class Game
       :jump_and_dash,
       :burn_jumps_and_dashes,
       :leap_of_faith,
-      :hill_climb
+      :hill_climb,
+      :spam_dash
     ]
 
     state.current_level_index ||= 0
@@ -179,19 +181,20 @@ class Game
   end
 
   def jump_pressed?
-    inputs.keyboard.key_down.space   ||
-    inputs.controller_one.key_down.a ||
-    inputs.keyboard.key_down.up      ||
-    inputs.keyboard.key_down.w
+    inputs.keyboard.space   ||
+    inputs.controller_one.a ||
+    inputs.keyboard.up      ||
+    inputs.keyboard.w
   end
 
   def input_jump
+    jumps_performed_before_decrement = player.jumps_performed
     if jump_pressed?
       state.previous_player_state = player.copy
       entity_jump player
     end
 
-    if player.jump_at == Kernel.tick_count
+    if player.jump_at == Kernel.tick_count && player.jumps_performed != jumps_performed_before_decrement
       jump_index = player.jumps_performed.clamp(0, 6)
       audio[:jump] = { input: "sounds/jump-#{jump_index}.ogg" }
     end
@@ -230,11 +233,11 @@ class Game
   end
 
   def input_dash_left?
-    inputs.controller_one.key_down.l1 || inputs.keyboard.key_down.j || inputs.keyboard.key_down.q
+    inputs.controller_one.l1 || inputs.keyboard.j || inputs.keyboard.q
   end
 
   def input_dash_right?
-    inputs.controller_one.key_down.r1 || inputs.keyboard.key_down.l || inputs.keyboard.key_down.e
+    inputs.controller_one.r1 || inputs.keyboard.l || inputs.keyboard.e
   end
 
   def input_dash?
@@ -244,6 +247,7 @@ class Game
   def input_dash
     return if !dash_unlocked?
     return if player.is_dashing
+    return if player.dashing_at && player.dashing_at.elapsed_time < 15
     return if !input_dash?
 
     if input_dash_left?
@@ -262,12 +266,15 @@ class Game
       player.dashing_at = nil
     end
 
+    dashes_performed_before_decrement = player.dashes_performed
     player.dashes_left -= 1
     player.dashes_left = player.dashes_left.clamp(0, 6)
     player.dashes_performed += 1
     player.dashes_performed = player.dashes_performed.clamp(0, 6)
     dash_index = player.dashes_performed.clamp(0, 6)
-    audio[:dash] = { input: "sounds/dash-#{dash_index}.ogg" }
+    if dashes_performed_before_decrement != player.dashes_performed
+      audio[:dash] = { input: "sounds/dash-#{dash_index}.ogg" }
+    end
   end
 
   def calc
@@ -498,7 +505,7 @@ class Game
 
     state.world_view_debounce = state.world_view_debounce.clamp(0, 300)
 
-    if state.world_view_debounce == 0 && state.camera.target_scale != 0.50
+    if state.world_view_debounce == 0 && state.camera.target_scale > 0.50
       state.camera.target_scale = 0.50
       state.camera.target_scale_changed_at = Kernel.tick_count
     end
@@ -611,6 +618,7 @@ class Game
         target.y = collision.rect.y - target.h
       elsif target.dy < 0
         target.y = collision.rect.y + collision.rect.h
+        target.jump_at = nil
         target.on_ground = true
         if target.is_dashing
         else
@@ -619,12 +627,14 @@ class Game
         end
       end
       target.dy = 0
-      target.jump_at = nil
       target.started_falling_at = nil
     else
       target.on_ground = false
       target.on_ground_at = nil
       target.started_falling_at ||= Kernel.tick_count
+      if target.dy < 0 && player.action != :dance
+        action! target, :fall
+      end
     end
 
     if target.is_dashing
@@ -985,8 +995,8 @@ class Game
   end
 
   def entity_jump target
-    can_jump = target.on_ground ||
-               (target.started_falling_at && target.started_falling_at.elapsed_time < (5 / state.sim_dt)) # coyote time
+    has_coyote_time = target.started_falling_at && target.started_falling_at.elapsed_time < (5 / state.sim_dt)
+    can_jump = target.on_ground || (player.action == :fall && has_coyote_time)
 
     return if !can_jump
 
