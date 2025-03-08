@@ -1072,8 +1072,9 @@ class Game
     audio[:bg].gain = audio[:bg].gain.clamp(0, state.max_music_volume)
 
     if player.action == :walk
-      if Kernel.tick_count.zmod? 10
-        audio[:foot] = { input: "sounds/foot-#{state.foot_steps_audio_index}.ogg", gain: state.max_sfx_volume }
+      if player.action_at.elapsed_time.zmod? 8
+        index = player.action_at.elapsed_time.idiv(8) % 6
+        audio[:foot] = { input: "sounds/foot-#{index}.ogg", gain: state.max_sfx_volume }
       end
     end
   end
