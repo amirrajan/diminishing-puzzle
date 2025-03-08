@@ -630,7 +630,7 @@ class Game
     end
 
     collision = Geometry.find_intersect_rect target, state.tiles
-    if collision
+    if collision && !target.is_dead
       target.dx = 0
       target.is_dashing = false
       if target.facing_x > 0
@@ -642,7 +642,7 @@ class Game
 
     target.y += target.dy * state.sim_dt
     collision = Geometry.find_intersect_rect target, state.tiles
-    if collision
+    if collision && !target.is_dead
       if target.dy > 0
         target.y = collision.rect.y - target.h
       elsif target.dy < 0
@@ -676,10 +676,9 @@ class Game
     end
 
     # drop_fast = target.dy < 0
-    # if drop_fast
-    #   target.dy = target.dy + state.gravity * state.sim_dt
-    #   target.dy = target.dy + state.gravity * state.sim_dt
-    # end
+    if target.is_dead
+      target.dy = target.dy + state.gravity * state.sim_dt
+    end
     target.dy = target.dy.clamp(-state.tile_size, state.tile_size)
   end
 
@@ -695,7 +694,7 @@ class Game
 
     # launch them up and zoom out camera
     if player.dead_at.elapsed_time == 15
-      player.dy = 40
+      player.dy = 60
       camera.target_scale = 0.25
       camera.target_scale_changed_at = Kernel.tick_count
     end
