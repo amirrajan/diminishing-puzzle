@@ -732,46 +732,29 @@ class Game
       state.instructions_alpha = state.instructions_alpha.lerp(0, 0.1)
     end
 
+    instructions_rect = { x: player.x + 32,
+                          y: player.y + 72,
+                          w: 320,
+                          h: 64,
+                          anchor_x: 0.5,
+                          path: "sprites/controller-dash.png",
+                          a: state.instructions_alpha }
 
     if inputs.last_active == :controller
       if dash_unlocked?
           outputs[:scene].primitives << Camera.to_screen_space(camera,
-                                                               { x: player.x + 32,
-                                                                 y: player.y + 72,
-                                                                 w: 166,
-                                                                 h: 64,
-                                                                 anchor_x: 0.5,
-                                                                 path: "sprites/instructions-controller-dash.png",
-                                                                 a: state.instructions_alpha })
+                                                               instructions_rect.merge(path: "sprites/controller-dash.png"))
       else
           outputs[:scene].primitives << Camera.to_screen_space(camera,
-                                                               { x: player.x + 32,
-                                                                 y: player.y + 72,
-                                                                 w: 166,
-                                                                 h: 64,
-                                                                 anchor_x: 0.5,
-                                                                 path: "sprites/instructions-controller-no-dash.png",
-                                                                 a: state.instructions_alpha })
+                                                               instructions_rect.merge(path: "sprites/controller-no-dash.png"))
       end
     else
       if dash_unlocked?
           outputs[:scene].primitives << Camera.to_screen_space(camera,
-                                                               { x: player.x + 32,
-                                                                 y: player.y + 72,
-                                                                 w: 166,
-                                                                 h: 64,
-                                                                 anchor_x: 0.5,
-                                                                 path: "sprites/instructions-keyboard-dash.png",
-                                                                 a: state.instructions_alpha })
+                                                               instructions_rect.merge(path: "sprites/keyboard-dash.png"))
       else
           outputs[:scene].primitives << Camera.to_screen_space(camera,
-                                                               { x: player.x + 32,
-                                                                 y: player.y + 72,
-                                                                 w: 166,
-                                                                 h: 64,
-                                                                 anchor_x: 0.5,
-                                                                 path: "sprites/instructions-keyboard-no-dash.png",
-                                                                 a: state.instructions_alpha })
+                                                               instructions_rect.merge(path: "sprites/keyboard-no-dash.png"))
       end
     end
   end
