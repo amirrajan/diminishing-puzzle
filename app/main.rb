@@ -858,9 +858,11 @@ class Game
     state.jump_meter_perc = state.jump_meter_perc.lerp(player.jumps_performed.fdiv(5), 0.1)
     outputs.primitives << meter_prefab(0.25, 0, 1 - state.jump_meter_perc)
 
-    state.dash_meter_perc ||= player.dashes_performed.fdiv(5)
-    state.dash_meter_perc = state.dash_meter_perc.lerp(player.dashes_performed.fdiv(5), 0.1)
-    outputs.primitives << meter_prefab(0.75, 0, 1 - state.dash_meter_perc)
+    if dash_unlocked?
+      state.dash_meter_perc ||= player.dashes_performed.fdiv(5)
+      state.dash_meter_perc = state.dash_meter_perc.lerp(player.dashes_performed.fdiv(5), 0.1)
+      outputs.primitives << meter_prefab(0.75, 0, 1 - state.dash_meter_perc)
+    end
   end
 
   def render_scene
