@@ -21,11 +21,6 @@ class Game
     input
     calc
     render
-    # outputs.watch "#{GTK.current_framerate} FPS"
-    # outputs.watch "player: #{player.action}"
-    # outputs.watch "sim_dt: #{current_level_name}"
-    # outputs.watch "deaths: #{state.deaths}"
-    outputs.watch "foot_steps_audio_index: #{state.foot_steps_audio_index}"
   end
 
   def new_player
@@ -1041,21 +1036,6 @@ class Game
   end
 
   # ffmpeg -i ./mygame/sounds/bg.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/bg.ogg
-  # ffmpeg -i ./mygame/sounds/dead.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/dead.ogg
-  # ffmpeg -i ./mygame/sounds/goal.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/goal.ogg
-  # ffmpeg -i ./mygame/sounds/complete.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/complete.ogg
-  # ffmpeg -i ./mygame/sounds/jump-1.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/jump-1.ogg
-  # ffmpeg -i ./mygame/sounds/jump-2.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/jump-2.ogg
-  # ffmpeg -i ./mygame/sounds/jump-3.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/jump-3.ogg
-  # ffmpeg -i ./mygame/sounds/jump-4.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/jump-4.ogg
-  # ffmpeg -i ./mygame/sounds/jump-5.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/jump-5.ogg
-  # ffmpeg -i ./mygame/sounds/jump-6.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/jump-6.ogg
-  # ffmpeg -i ./mygame/sounds/dash-1.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/dash-1.ogg
-  # ffmpeg -i ./mygame/sounds/dash-2.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/dash-2.ogg
-  # ffmpeg -i ./mygame/sounds/dash-3.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/dash-3.ogg
-  # ffmpeg -i ./mygame/sounds/dash-4.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/dash-4.ogg
-  # ffmpeg -i ./mygame/sounds/dash-5.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/dash-5.ogg
-  # ffmpeg -i ./mygame/sounds/dash-6.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/dash-6.ogg
   def render_audio
     audio[:bg] ||= {
       input: "sounds/bg.ogg",
@@ -1254,70 +1234,3 @@ end
 
 # GTK.reset_and_replay "replay.txt", speed: 3
 # GTK.reset
-
-class GTK::Console::Menu
-  # STEP 1: Override the custom_buttons function.
-  def custom_buttons
-    [
-      (button id: :music_decrease,
-              row: 2,
-              col: 18,
-              text: "BG+ (#{$state.max_music_volume.to_sf})",
-              method: :increase_music_clicked),
-
-      (button id: :music_increase,
-              row: 2,
-              col: 16,
-              text: "BG- (#{$state.max_music_volume.to_sf})",
-              method: :decrease_music_clicked),
-
-      (button id: :music_decrease,
-              row: 3,
-              col: 18,
-              text: "FX+ (#{$state.max_sfx_volume.to_sf})",
-              method: :increase_sfx_clicked),
-
-      (button id: :music_increase,
-              row: 3,
-              col: 16,
-              text: "FX- (#{$state.max_sfx_volume.to_sf})",
-              method: :decrease_sfx_clicked),
-
-      (button id: :random_sfx,
-              row: 3,
-              col: 14,
-              text: "RAND SFX",
-              method: :play_random_sfx),
-    ]
-  end
-
-  # STEP 2: Define the function that should be called.
-  def decrease_music_clicked
-    $state.max_music_volume -= 0.1
-    $state.max_music_volume = $state.max_music_volume.clamp(0, 1)
-  end
-
-  def increase_music_clicked
-    $state.max_music_volume += 0.1
-    $state.max_music_volume = $state.max_music_volume.clamp(0, 1)
-  end
-
-  def decrease_sfx_clicked
-    $state.max_sfx_volume -= 0.1
-    $state.max_sfx_volume = $state.max_sfx_volume.clamp(0, 1)
-    random_audio = [:dead, :goal, :complete].sample
-    $args.audio[random_audio] = { input: "sounds/#{random_audio}.ogg", gain: $state.max_sfx_volume}
-  end
-
-  def increase_sfx_clicked
-    $state.max_sfx_volume += 0.1
-    $state.max_sfx_volume = $state.max_sfx_volume.clamp(0, 1)
-    random_audio = [:dead, :goal, :complete].sample
-    $args.audio[random_audio] = { input: "sounds/#{random_audio}.ogg", gain: $state.max_sfx_volume}
-  end
-
-  def play_random_sfx
-    random_audio = [:dead, :goal, :complete].sample
-    $args.audio[random_audio] = { input: "sounds/#{random_audio}.ogg", gain: $state.max_sfx_volume}
-  end
-end
