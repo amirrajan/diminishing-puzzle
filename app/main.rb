@@ -76,7 +76,8 @@ class Game
       :burn_a_dash,
       :jump_and_dash,
       :burn_jumps_and_dashes,
-      :leap_of_faith
+      :leap_of_faith,
+      :hill_climb
     ]
 
     state.current_level_index ||= 0
@@ -277,6 +278,7 @@ class Game
     calc_game_over
     calc_level_edit
     calc_camera
+    calc_world_view
     calc_particles
     calc_level_complete
     calc_whisps
@@ -478,6 +480,27 @@ class Game
     elsif inputs.keyboard.zero
       camera.target_scale = 1
       camera.target_scale_changed_at = Kernel.tick_count
+    end
+  end
+
+  def calc_world_view
+    state.world_view_debounce ||= 300
+
+    if player.action == :idle && player.on_ground
+      state.world_view_debounce -= 1
+    else
+      if state.world_view_debounce == 0
+        state.camera.target_scale = 0.75
+        state.camera.target_scale_changed_at = Kernel.tick_count
+      end
+      state.world_view_debounce = 180
+    end
+
+    state.world_view_debounce = state.world_view_debounce.clamp(0, 300)
+
+    if state.world_view_debounce == 0 && state.camera.target_scale != 0.50
+      state.camera.target_scale = 0.50
+      state.camera.target_scale_changed_at = Kernel.tick_count
     end
   end
 
@@ -973,8 +996,8 @@ class Game
       4 => 21,
       3 => 17,
       2 => 13,
-      1 => 4,
-      0 => 4
+      1 => 0,
+      0 => 0
     }
 
     target.jump_power = jump_power_lookup[target.jumps_left] || 0
@@ -1011,9 +1034,18 @@ def boot args
 end
 
 def tick args
-  $game ||= Game.new
-  $game.args = args
-  $game.tick
+  if (!args.inputs.keyboard.has_focus && args.gtk.production && Kernel.tick_count != 0)
+    args.outputs.background_color = [0, 0, 0]
+    args.outputs.labels << { x: 640,
+                             y: 360,
+                             text: "Game Paused (click to resume).",
+                             alignment_enum: 1,
+                             r: 255, g: 255, b: 255 }
+  else
+    $game ||= Game.new
+    $game.args = args
+    $game.tick
+  end
 end
 
 def reset args
