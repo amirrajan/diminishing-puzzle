@@ -24,6 +24,7 @@ class Game
     # outputs.watch "#{GTK.current_framerate} FPS"
     # outputs.watch "player: #{player.action}"
     # outputs.watch "sim_dt: #{current_level_name}"
+    outputs.watch "deaths: #{state.deaths}"
   end
 
   def new_player
@@ -71,6 +72,8 @@ class Game
 
   def defaults
     state.gravity ||= -1
+    state.deaths ||= 0
+    state.time_taken ||= 0
 
     state.max_music_volume ||= 0.4
     state.max_sfx_volume ||= 1
@@ -163,6 +166,7 @@ class Game
 
   def input
     return if player.is_dead
+    return if state.game_completed
 
     if state.level_completed
       player.dx *= 0.90
@@ -301,6 +305,7 @@ class Game
   end
 
   def calc
+    state.time_taken += 1 if !state.game_completed
     state.sim_dt = state.sim_dt.lerp(state.target_sim_dt, 0.1)
     calc_physics player
     calc_goals
@@ -702,6 +707,9 @@ class Game
   def calc_game_over
     return if state.level_completed
     return if !player.is_dead
+    if player.dead_at == Kernel.tick_count
+      state.deaths += 1
+    end
 
     # pause at player's death location
     if player.dead_at.elapsed_time < 15
@@ -753,6 +761,102 @@ class Game
     outputs.primitives << { **Camera.viewport, path: :lighted_scene }
     render_level_complete
     render_instructions
+    render_meters
+    render_game_completed
+  end
+
+  def render_game_completed
+    return if !state.game_completed
+
+    outputs.primitives << {
+      x: 640, y: 360,
+      text: "You Won!",
+      r: 255, g: 255, b: 255,
+      anchor_x: 0.5,
+      anchor_y: -1.0,
+      size_px: 30
+    }
+
+    outputs.primitives << {
+      x: 640, y: 360,
+      text: "Deaths: #{state.deaths}",
+      r: 255, g: 255, b: 255,
+      anchor_x: 0.5,
+      anchor_y: 0.0,
+      size_px: 30
+    }
+
+    outputs.primitives << {
+      x: 640, y: 360,
+      text: "Time: #{state.time_taken.fdiv(60).to_sf} seconds",
+      r: 255, g: 255, b: 255,
+      anchor_x: 0.5,
+      anchor_y: 1.0,
+      size_px: 30
+    }
+
+    if inputs.last_active == :controller
+      outputs.primitives << {
+        x: 640, y: 360,
+        text: "Press START to Go Again",
+        anchor_x: 0.5,
+        anchor_y: 3.0,
+        r: 255, g: 255, b: 255,
+        size_px: 30
+      }
+    else
+      outputs.primitives << {
+        x: 640, y: 360,
+        text: "Press ENTER to Go Again",
+        anchor_x: 0.5,
+        anchor_y: 3.0,
+        r: 255, g: 255, b: 255,
+        size_px: 30
+      }
+    end
+
+    if inputs.controller_one.key_down.start || inputs.keyboard.key_down.enter
+      GTK.reset_next_tick
+    end
+  end
+
+  def meter_prefab row, col, perc
+    rect = Layout.rect(row: row, col: col, w: 4, h: 0.5)
+    [
+      {
+        x: rect.x,
+        y: rect.y,
+        w: rect.w,
+        h: rect.h,
+        r: 255,
+        g: 255,
+        b: 255,
+        a: 128,
+        path: :solid
+      },
+      {
+        x: rect.x + 2,
+        y: rect.y + 2,
+        w: (rect.w - 4) * perc.clamp(0, 1),
+        h: (rect.h - 4),
+        r: 0,
+        g: 80,
+        b: 0,
+        path: :solid
+      },
+    ]
+  end
+
+  def render_meters
+    return if state.game_completed
+
+    state.jump_meter_perc ||= player.jumps_performed.fdiv(5)
+    state.jump_meter_perc = state.jump_meter_perc.lerp(player.jumps_performed.fdiv(5), 0.1)
+    outputs.primitives << meter_prefab(0.25, 0, 1 - state.jump_meter_perc)
+
+    state.dash_meter_perc ||= player.dashes_performed.fdiv(5)
+    state.dash_meter_perc = state.dash_meter_perc.lerp(player.dashes_performed.fdiv(5), 0.1)
+    outputs.primitives << meter_prefab(0.75, 0, 1 - state.dash_meter_perc)
   end
 
   def render_scene
@@ -852,7 +956,10 @@ class Game
   def calc_level_complete
     return if !state.level_completed
 
-    if state.level_completed_at.elapsed_time == 60
+    if state.current_level_index == state.levels.length
+      state.game_completed = true
+      state.game_completed_at ||= Kernel.tick_count
+    elsif state.level_completed_at.elapsed_time == 60
       load_level state.current_level_index + 1
       state.player = new_player
       camera.scale = 0.25
@@ -885,22 +992,36 @@ class Game
         b: 0
       }
     else
-      perc = Easing.smooth_start(start_at: state.level_completed_at + 60,
-                                 duration: 30,
-                                 tick_count: Kernel.tick_count,
-                                 power: 3)
+      if state.game_completed
+        outputs.primitives << {
+          x: Grid.allscreen_x,
+          y: Grid.allscreen_y,
+          w: Grid.allscreen_w,
+          h: Grid.allscreen_h,
+          a: 255,
+          path: :solid,
+          r: 0,
+          g: 0,
+          b: 0
+        }
+      else
+        perc = Easing.smooth_start(start_at: state.level_completed_at + 60,
+                                   duration: 30,
+                                   tick_count: Kernel.tick_count,
+                                   power: 3)
 
-      outputs.primitives << {
-        x: (Grid.allscreen_w * perc) + Grid.allscreen_x,
-        y: Grid.allscreen_y,
-        w: Grid.allscreen_w,
-        h: Grid.allscreen_h,
-        a: 255 * state.level_completed_at.elapsed_time.fdiv(30),
-        path: :solid,
-        r: 0,
-        g: 0,
-        b: 0
-      }
+        outputs.primitives << {
+          x: (Grid.allscreen_w * perc) + Grid.allscreen_x,
+          y: Grid.allscreen_y,
+          w: Grid.allscreen_w,
+          h: Grid.allscreen_h,
+          a: 255 * state.level_completed_at.elapsed_time.fdiv(30),
+          path: :solid,
+          r: 0,
+          g: 0,
+          b: 0
+        }
+      end
     end
   end
 
