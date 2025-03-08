@@ -8,6 +8,8 @@ class Game
   end
 
   def burn_id!
+    # id generator, id is used to
+    # offset lava animation start points
     state.id ||= 1
     r = state.id
     state.id += 1
@@ -69,6 +71,8 @@ class Game
 
   def defaults
     state.gravity ||= -1
+
+    # list of levels that correlates to the data files
     state.levels ||= [
       :tutorial_jump,
       :jump_in_the_right_order,
@@ -84,8 +88,10 @@ class Game
 
     state.current_level_index ||= 0
 
+    # particle queue used to dash effects
     state.particles ||= []
 
+    # on start, init the player and level editor (if in dev mode)
     if Kernel.tick_count == 0
       state.player = new_player
       state.level_editor_enabled = !GTK.production?
@@ -95,7 +101,7 @@ class Game
     state.sim_dt        ||= 1.0
     state.target_sim_dt ||= 1.0
 
-    state.preview ||= []
+    state.level_editor_previews ||= []
     state.dash_spline ||= [
       [0, 0.66, 1.0, 1.0]
     ]
@@ -167,16 +173,15 @@ class Game
     end
   end
 
-  def kill_player!
-    return if player.is_dead
-    player.is_dead = true
-    player.dead_at ||= Kernel.tick_count
-    audio[:dead] = { input: "sounds/dead.ogg" }
+  def kill_target! target
+    return if target.is_dead
+    target.is_dead = true
+    target.dead_at ||= Kernel.tick_count
   end
 
   def input_kill_player
     if inputs.controller_one.key_down.start || inputs.keyboard.key_down.escape
-      kill_player!
+      kill_target! player
     end
   end
 
@@ -244,36 +249,45 @@ class Game
     input_dash_left? || input_dash_right?
   end
 
+  def entity_dash target, direction
+    if direction == :left
+      target.facing_x = -1
+    elsif direction == :right
+      target.facing_x = 1
+    end
+
+    target.is_dashing = true
+    target.dashing_at = Kernel.tick_count
+    target.start_dash_x = target.x
+    target.end_dash_x = target.x + state.tile_size * target.dashes_left * target.facing_x
+
+    if target.dashes_left == 0
+      target.is_dashing = false
+      target.dashing_at = nil
+    end
+
+    target.dashes_left -= 1
+    target.dashes_left = target.dashes_left.clamp(0, 6)
+    target.dashes_performed += 1
+    target.dashes_performed = target.dashes_performed.clamp(0, 6)
+  end
+
   def input_dash
     return if !dash_unlocked?
     return if player.is_dashing
     return if player.dashing_at && player.dashing_at.elapsed_time < 15
     return if !input_dash?
 
-    if input_dash_left?
-      player.facing_x = -1
-    elsif input_dash_right?
-      player.facing_x = 1
-    end
-
-    player.is_dashing = true
-    player.dashing_at = Kernel.tick_count
-    player.start_dash_x = player.x
-    player.end_dash_x = player.x + state.tile_size * player.dashes_left * player.facing_x
-
-    if player.dashes_left == 0
-      player.is_dashing = false
-      player.dashing_at = nil
-    end
-
     dashes_performed_before_decrement = player.dashes_performed
-    player.dashes_left -= 1
-    player.dashes_left = player.dashes_left.clamp(0, 6)
-    player.dashes_performed += 1
-    player.dashes_performed = player.dashes_performed.clamp(0, 6)
-    dash_index = player.dashes_performed.clamp(0, 6)
+
+    if input_dash_left?
+      entity_dash player, :left
+    elsif input_dash_right?
+      entity_dash player, :right
+    end
+
     if dashes_performed_before_decrement != player.dashes_performed
-      audio[:dash] = { input: "sounds/dash-#{dash_index}.ogg" }
+      audio[:dash] = { input: "sounds/dash-#{player.dashes_performed}.ogg" }
     end
   end
 
@@ -281,7 +295,7 @@ class Game
     state.sim_dt = state.sim_dt.lerp(state.target_sim_dt, 0.1)
     calc_physics player
     calc_goals
-    calc_spikes
+    calc_spikes player
     calc_game_over
     calc_level_edit
     calc_camera
@@ -289,6 +303,9 @@ class Game
     calc_particles
     calc_level_complete
     calc_whisps
+    if player.is_dead && player.dead_at == Kernel.tick_count
+      audio[:dead] = { input: "sounds/dead.ogg" }
+    end
     # state.target_sim_dt = 1.0 if player.on_ground
   end
 
@@ -378,11 +395,11 @@ class Game
     end
   end
 
-  def calc_spikes
+  def calc_spikes target
     return if state.level_completed
-    spike = Geometry.find_intersect_rect player, state.spikes
+    spike = Geometry.find_intersect_rect target, state.spikes
     if spike
-      kill_player!
+      kill_target! target
     end
   end
 
@@ -553,24 +570,36 @@ class Game
     end
 
     if Kernel.tick_count.zmod? 60
+      # jump straight up preview
       entity = player.merge(dx: 0, created_at: Kernel.tick_count)
       entity_jump entity
-      state.preview << entity
+      state.level_editor_previews << entity
 
+      # jump left and right preview
       entity = player.merge(dx: player.max_speed, created_at: Kernel.tick_count)
       entity_jump entity
-      state.preview << entity
+      state.level_editor_previews << entity
 
       entity = player.merge(dx: -player.max_speed, created_at: Kernel.tick_count)
       entity_jump entity
-      state.preview << entity
+      state.level_editor_previews << entity
+
+      # dash left and right preview
+      entity = player.merge(dx: 0, created_at: Kernel.tick_count)
+      entity_dash entity, :left
+      state.level_editor_previews << entity
+
+      entity = player.merge(dx: 0, created_at: Kernel.tick_count)
+      entity_dash entity, :right
+      state.level_editor_previews << entity
     end
 
-    state.preview.each do |entity|
+    state.level_editor_previews.each do |entity|
       calc_physics entity
+      calc_spikes entity
     end
 
-    state.preview.reject! do |entity|
+    state.level_editor_previews.reject! do |entity|
       entity.created_at.elapsed_time > 60 / state.sim_dt
     end
   end
@@ -627,12 +656,11 @@ class Game
         end
       end
       target.dy = 0
-      target.started_falling_at = nil
     else
       target.on_ground = false
       target.on_ground_at = nil
       target.started_falling_at ||= Kernel.tick_count
-      if target.dy < 0 && player.action != :dance
+      if target.dy < 0 && target.action != :dance
         action! target, :fall
       end
     end
@@ -643,8 +671,8 @@ class Game
       target.dy = target.dy + state.gravity * state.sim_dt
     end
 
-    if player.y < -4000
-      kill_player!
+    if target.y < -4000
+      kill_target! target
     end
 
     # drop_fast = target.dy < 0
@@ -897,7 +925,7 @@ class Game
 
     outputs[:scene].primitives << Camera.to_screen_space(camera, level_editor_mouse_prefab)
 
-    outputs[:scene].primitives << state.preview.map do |t|
+    outputs[:scene].primitives << state.level_editor_previews.map do |t|
       player_prefab(t).merge(a: 128)
     end
   end
