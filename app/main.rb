@@ -762,6 +762,7 @@ class Game
     outputs[:lighted_scene].h = 1500
     outputs[:lighted_scene].primitives << { x: 0, y: 0, w: 1500, h: 1500, path: :lights, blendmode_enum: 0 }
     outputs[:lighted_scene].primitives << { x: 0, y: 0, w: 1500, h: 1500, path: :scene, blendmode_enum: 2 }
+    # outputs.primitives << { **Camera.viewport, path: :lights }
     outputs.primitives << { **Camera.viewport, path: :lighted_scene }
     render_level_complete
     render_instructions
@@ -892,17 +893,42 @@ class Game
     outputs[:lights].background_color = [0, 0, 0, 0]
     outputs[:lights].w = 1500
     outputs[:lights].h = 1500
-    outputs[:lights].primitives << { x: 750, y: 750, w: 1500, h: 1500, path: "sprites/mask.png", anchor_x: 0.5, anchor_y: 0.5 }
+    outputs[:lights].primitives << Camera.to_screen_space(camera,
+                                                          x: player.x + 32,
+                                                          y: player.y + 32,
+                                                          w: 1000,
+                                                          h: 1000,
+                                                          anchor_x: 0.5,
+                                                          anchor_y: 0.5,
+                                                          path: "sprites/mask.png",
+                                                          anchor_y: 0.5)
+    if player.facing_x > 0
+      outputs[:lights].primitives << Camera.to_screen_space(camera,
+                                                            x: player.x + 32 + 28,
+                                                            y: player.y,
+                                                            w: 408 * 5,
+                                                            h: 216 * 5,
+                                                            path: "sprites/headlights.png", anchor_y: 0.5, r: 0, g: 0, b: 0)
+    else
+      outputs[:lights].primitives << Camera.to_screen_space(camera,
+                                                            x: player.x + 32 - 28 - 408 * 5,
+                                                            y: player.y,
+                                                            w: 408 * 5,
+                                                            h: 216 * 5,
+                                                            flip_horizontally: true,
+                                                            path: "sprites/headlights.png", anchor_y: 0.5, r: 0, g: 0, b: 0)
+    end
+
     outputs[:lights].primitives << state.spikes.map do |t|
-                                     mask_prefab(t)
-                                   end
+      mask_prefab(t)
+    end
 
     outputs[:lights].primitives << state.goals.map do |t|
-                                     mask_prefab(t)
-                                   end
+      mask_prefab(t)
+    end
 
     outputs[:lights].primitives << state.whisps.map do |w|
-      w.merge(x: w.x, y: w.y, w: 640, h: 640, r: 0, g: 0, b: 0, path: "sprites/mask.png")
+      w.merge(x: w.x, y: w.y, w: 640, h: 640, r: 0, g: 0, b: 0, path: "sprites/mask.png", a: 200)
     end
   end
 
