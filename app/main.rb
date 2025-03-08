@@ -75,8 +75,8 @@ class Game
     state.deaths ||= 0
     state.time_taken ||= 0
 
-    state.max_music_volume ||= 0.4
-    state.max_sfx_volume ||= 1
+    state.max_music_volume ||= 0.5
+    state.max_sfx_volume ||= 0.9
 
     # list of levels that correlates to the data files
     state.levels ||= [
@@ -88,8 +88,8 @@ class Game
       :jump_and_dash,
       :burn_jumps_and_dashes,
       :leap_of_faith,
+      :spam_dash,
       :hill_climb,
-      :spam_dash
     ]
 
     state.current_level_index ||= 0
