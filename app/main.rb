@@ -168,6 +168,7 @@ class Game
     return if player.is_dead
     player.is_dead = true
     player.dead_at ||= Kernel.tick_count
+    audio[:dead] = { input: "sounds/dead.ogg" }
   end
 
   def input_kill_player
@@ -348,6 +349,7 @@ class Game
     goal = Geometry.find_intersect_rect player, state.goals
     if goal && !player.collected_goals.include?(goal)
       player.collected_goals << goal
+      audio[:goal] = { input: "sounds/goal.ogg" }
     end
 
     # level completion checked if:
@@ -360,9 +362,10 @@ class Game
                       player.collected_goals.length == state.goals.length &&
                       !state.level_completed
 
-    if level_completed
+    if level_completed && !state.level_completed
       state.level_completed = true
       state.level_completed_at = Kernel.tick_count
+      audio[:complete] = { input: "sounds/complete.ogg" }
     end
   end
 
@@ -820,6 +823,10 @@ class Game
     end
   end
 
+  # ffmpeg -i ./mygame/sounds/bg.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/bg.ogg
+  # ffmpeg -i ./mygame/sounds/dead.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/dead.ogg
+  # ffmpeg -i ./mygame/sounds/goal.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/goal.ogg
+  # ffmpeg -i ./mygame/sounds/complete.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/complete.ogg
   # ffmpeg -i ./mygame/sounds/jump-1.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/jump-1.ogg
   # ffmpeg -i ./mygame/sounds/jump-2.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/jump-2.ogg
   # ffmpeg -i ./mygame/sounds/jump-3.wav -ac 2 -b:a 160k -ar 44100 -acodec libvorbis ./mygame/sounds/jump-3.ogg
