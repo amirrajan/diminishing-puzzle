@@ -98,7 +98,7 @@ class Game
     # on start, init the player and level editor (if in dev mode)
     if Kernel.tick_count == 0
       state.player = new_player
-      state.level_editor_enabled = !GTK.production?
+      # state.level_editor_enabled = !GTK.production?
     end
 
     # simulation/physics DT (bullet time option)
@@ -169,7 +169,7 @@ class Game
     if state.level_completed
       player.dx *= 0.90
       action! player, :dance
-      player.dy = 7 if player.on_ground
+      # player.dy = 7 if player.on_ground
     else
       input_jump
       input_move
@@ -991,13 +991,13 @@ class Game
     if state.current_level_index == state.levels.length
       state.game_completed = true
       state.game_completed_at ||= Kernel.tick_count
-    elsif state.level_completed_at.elapsed_time == 60
+    elsif state.level_completed_at.elapsed_time == 60 * 2
       load_level state.current_level_index + 1
       state.player = new_player
       camera.scale = 0.25
       camera.target_scale = 0.75
       camera.target_scale_changed_at = Kernel.tick_count + 30
-    elsif state.level_completed_at.elapsed_time > 90
+    elsif state.level_completed_at.elapsed_time > 90 * 2
       state.level_completed = false
       state.level_completed_at = nil
     end
@@ -1006,9 +1006,9 @@ class Game
   def render_level_complete
     return if !state.level_completed
 
-    if state.level_completed_at.elapsed_time < 60
+    if state.level_completed_at.elapsed_time < 60 * 2
       perc = Easing.smooth_start(start_at: state.level_completed_at,
-                                 duration: 60,
+                                 duration: 60 * 2,
                                  tick_count: Kernel.tick_count,
                                  power: 3)
 
@@ -1017,7 +1017,7 @@ class Game
         y: Grid.allscreen_y,
         w: Grid.allscreen_w,
         h: Grid.allscreen_h,
-        a: 255 * state.level_completed_at.elapsed_time.fdiv(60),
+        a: 255 * state.level_completed_at.elapsed_time.fdiv(60 * 2),
         path: :solid,
         r: 0,
         g: 0,
@@ -1037,8 +1037,8 @@ class Game
           b: 0
         }
       else
-        perc = Easing.smooth_start(start_at: state.level_completed_at + 60,
-                                   duration: 30,
+        perc = Easing.smooth_start(start_at: state.level_completed_at + 60 * 2,
+                                   duration: 30 * 2,
                                    tick_count: Kernel.tick_count,
                                    power: 3)
 
@@ -1047,7 +1047,7 @@ class Game
           y: Grid.allscreen_y,
           w: Grid.allscreen_w,
           h: Grid.allscreen_h,
-          a: 255 * state.level_completed_at.elapsed_time.fdiv(30),
+          a: 255 * state.level_completed_at.elapsed_time.fdiv(30 * 2),
           path: :solid,
           r: 0,
           g: 0,
