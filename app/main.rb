@@ -825,45 +825,42 @@ class Game
     end
   end
 
-  def meter_prefab row, col, perc
-    rect = Layout.rect(row: row, col: col, w: 4, h: 0.5)
-    [
-      {
-        x: rect.x,
-        y: rect.y,
-        w: rect.w,
-        h: rect.h,
-        r: 255,
-        g: 255,
-        b: 255,
-        a: 128,
-        path: :solid
-      },
-      {
-        x: rect.x + 2,
-        y: rect.y + 2,
-        w: (rect.w - 4) * perc.clamp(0, 1),
-        h: (rect.h - 4),
-        r: 0,
-        g: 80,
-        b: 0,
-        path: :solid
-      },
-    ]
-  end
-
   def render_meters
     return if state.game_completed
 
-    state.jump_meter_perc ||= player.jumps_performed.fdiv(5)
-    state.jump_meter_perc = state.jump_meter_perc.lerp(player.jumps_performed.fdiv(5), 0.1)
-    outputs.primitives << meter_prefab(0.25, 0, 1 - state.jump_meter_perc)
+    row_offset = 6
+
+    jumps_left = player.jumps_left - 1
+    jumps_performed = 5 - jumps_left
+
+    outputs.primitives << jumps_performed.map do |i|
+      Layout.rect(row: row_offset + i, col: 0, w: 1, h: 1)
+            .merge(path: "sprites/meters/jump-empty.png")
+    end
+
+    outputs.primitives << jumps_left.map do |i|
+      Layout.rect(row: row_offset + jumps_performed + i, col: 0, w: 1, h: 1)
+            .merge(path: "sprites/meters/jump-full.png")
+    end
+
+    dashes_left = player.dashes_left
+    dashes_performed = 5 - dashes_left
 
     if dash_unlocked?
-      state.dash_meter_perc ||= player.dashes_performed.fdiv(5)
-      state.dash_meter_perc = state.dash_meter_perc.lerp(player.dashes_performed.fdiv(5), 0.1)
-      outputs.primitives << meter_prefab(0.75, 0, 1 - state.dash_meter_perc)
+      outputs.primitives << dashes_left.map do |i|
+        Layout.rect(row: row_offset + 5, col: i + 1, w: 1, h: 1)
+              .merge(path: "sprites/meters/dash-full.png")
+      end
+
+      outputs.primitives << dashes_performed.map do |i|
+        Layout.rect(row: row_offset + 5, col: 4 - i + 1, w: 1, h: 1)
+              .merge(path: "sprites/meters/dash-empty.png")
+      end
     end
+
+    outputs.primitives << Layout.rect(row: row_offset + 5, col: 0, w: 1, h: 1)
+                                .merge(path: "sprites/meters/gray-box.png")
+
   end
 
   def render_scene
