@@ -209,6 +209,12 @@ class Game
   end
 
   def input_move
+    if inputs.keyboard.key_down.w || inputs.keyboard.key_down.a || inputs.keyboard.key_down.s || inputs.keyboard.key_down.d
+      state.wasd_used = true
+    elsif inputs.keyboard.key_down.up_arrow || inputs.keyboard.key_down.left_arrow || inputs.keyboard.key_down.down_arrow || inputs.keyboard.key_down.right_arrow
+      state.wasd_used = false
+    end
+
     if inputs.left
       if player.on_ground
         action! player, :walk
@@ -674,7 +680,7 @@ class Game
       target.dy = target.dy + state.gravity * state.sim_dt
     end
 
-    if target.y < -4000
+    if target.y < -3000
       kill_target! target
     end
 
@@ -682,7 +688,15 @@ class Game
     if target.is_dead
       target.dy = target.dy + state.gravity * state.sim_dt
     end
-    target.dy = target.dy.clamp(-state.tile_size, state.tile_size)
+
+    if state.lowest_tile_y && target.y < state.lowest_tile_y - 128 && !target.is_dead
+      target.dy = target.dy + state.gravity * state.sim_dt
+      target.dy = target.dy + state.gravity * state.sim_dt
+      target.dy = target.dy + state.gravity * state.sim_dt
+      target.dy = target.dy + state.gravity * state.sim_dt
+    else
+      target.dy = target.dy.clamp(-state.tile_size, state.tile_size)
+    end
   end
 
   def calc_game_over
@@ -816,11 +830,21 @@ class Game
       end
     else
       if dash_unlocked?
+        if state.wasd_used
           outputs[:scene].primitives << Camera.to_screen_space(camera,
-                                                               instructions_rect.merge(path: "sprites/keyboard-dash.png"))
+                                                               instructions_rect.merge(path: "sprites/keyboard-wasd-dash.png"))
+        else
+          outputs[:scene].primitives << Camera.to_screen_space(camera,
+                                                               instructions_rect.merge(path: "sprites/keyboard-arrow-dash.png"))
+        end
       else
+        if state.wasd_used
           outputs[:scene].primitives << Camera.to_screen_space(camera,
-                                                               instructions_rect.merge(path: "sprites/keyboard-no-dash.png"))
+                                                               instructions_rect.merge(path: "sprites/keyboard-wasd-no-dash.png"))
+        else
+          outputs[:scene].primitives << Camera.to_screen_space(camera,
+                                                               instructions_rect.merge(path: "sprites/keyboard-arrow-no-dash.png"))
+        end
       end
     end
   end
