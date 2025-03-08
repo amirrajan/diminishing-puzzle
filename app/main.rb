@@ -24,7 +24,8 @@ class Game
     # outputs.watch "#{GTK.current_framerate} FPS"
     # outputs.watch "player: #{player.action}"
     # outputs.watch "sim_dt: #{current_level_name}"
-    outputs.watch "deaths: #{state.deaths}"
+    # outputs.watch "deaths: #{state.deaths}"
+    outputs.watch "foot_steps_audio_index: #{state.foot_steps_audio_index}"
   end
 
   def new_player
@@ -74,6 +75,8 @@ class Game
     state.gravity ||= -1
     state.deaths ||= 0
     state.time_taken ||= 0
+
+    state.foot_steps_audio_index ||= 0
 
     state.max_music_volume ||= 0.5
     state.max_sfx_volume ||= 0.9
@@ -243,7 +246,13 @@ class Game
       player.left_at = nil
       player.right_at = nil
     end
+
     player.dx = player.dx.clamp(-player.max_speed, player.max_speed)
+
+    if player.action == :idle && player.action_at == Kernel.tick_count
+      state.foot_steps_audio_index += 1
+      state.foot_steps_audio_index = state.foot_steps_audio_index % 6
+    end
   end
 
   def dash_unlocked?
@@ -1056,6 +1065,12 @@ class Game
 
     audio[:bg].gain += 0.01
     audio[:bg].gain = audio[:bg].gain.clamp(0, state.max_music_volume)
+
+    if player.action == :walk
+      if Kernel.tick_count.zmod? 10
+        audio[:foot] = { input: "sounds/foot-#{state.foot_steps_audio_index}.ogg", gain: state.max_sfx_volume }
+      end
+    end
   end
 
   def render_level_editor
